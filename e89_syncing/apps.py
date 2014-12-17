@@ -1,0 +1,28 @@
+from django.apps import AppConfig
+from django.conf import settings
+from collections import OrderedDict
+import importlib
+
+class E89SyncingConfig(AppConfig):
+	sync_managers = OrderedDict()
+	name='e89_syncing'
+
+	def ready(self):
+
+		for module_name in settings.SYNC_MANAGERS:
+			module_name,class_name = module_name.rsplit('.',1)
+			mod = importlib.import_module(module_name)
+			sync_manager_class = getattr(mod, class_name)
+			sync_manager = sync_manager_class()
+			E89SyncingConfig.sync_managers[sync_manager.getIdentifier()] = sync_manager
+
+	@staticmethod
+	def get_sync_managers():
+		return E89SyncingConfig.sync_managers.values()
+
+	@staticmethod
+	def get_sync_manager(identifier):
+		return E89SyncingConfig.sync_managers.get(identifier)
+
+
+
