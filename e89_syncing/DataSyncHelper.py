@@ -39,8 +39,9 @@ def getModifiedData(token, timestamp, exclude = {}):
 	data = {}
 	for sync_manager in E89SyncingConfig.get_sync_managers():
 		identifier = sync_manager.getIdentifier()
-		manager_data = sync_manager.getModifiedData(token = token, timestamp = timestamp, exclude = exclude.get(identifier,[]))
-		data[identifier] = manager_data
+		manager_data,manager_parameters = sync_manager.getModifiedData(token = token, timestamp = timestamp, exclude = exclude.get(identifier,[]))
+		manager_parameters['data'] = manager_data
+		data[identifier] = manager_parameters
 
 	data["timestamp"] = get_new_timestamp()
 	return data
@@ -52,9 +53,9 @@ def getModifiedDataForIdentifier(token, parameters, identifier):
 	sync_manager = E89SyncingConfig.get_sync_manager(identifier)
 	if sync_manager is None:
 		raise Http404
-	manager_data = sync_manager.getModifiedData(token = token, parameters = parameters)
-
-	return {sync_manager.getIdentifier():manager_data}
+	manager_data,manager_parameters = sync_manager.getModifiedData(token = token, timestamp = timestamp_to_datetime(""), parameters = parameters)
+	manager_parameters['data'] = manager_data
+	return {sync_manager.getIdentifier():manager_parameters}
 
 
 
@@ -79,7 +80,8 @@ class BaseSyncManager(object):
 		pass
 
 	def getModifiedData(self, token, timestamp, parameters = None, exclude = []):
-		''' Busca dados novos a serem enviados. Deve retornar uma lista de objetos serializados.
+		''' Busca dados novos a serem enviados. Deve retornar uma lista de objetos serializados e
+			um dicionário com parâmetros a serem repassados ao cliente.
 			O parâmetro exclude é uma lista de ids de objetos que devem ser desconsiderados na query.'''
 		pass
 

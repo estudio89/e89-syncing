@@ -15,6 +15,12 @@
 
 		SYNC_TOKEN_ATTR = "userprofissional.token"
 
+	Caso se deseje utilizar criptografia em toda a comunicação, definir ainda as opções:
+
+		SYNC_ENCRYPTION = True
+
+		SYNC_ENCRYPTION_PASSWORD = "password"
+
 4. Incluir url's no arquivo urls.py do projeto:
 
 	url(r'syncing/', include('e89_syncing.urls')),
