@@ -7,11 +7,12 @@ import e89_syncing.security
 import e89_syncing.RNCryptor
 import json
 
+FIRST_TIMESTAMP = dt.datetime(1, 1, 1)
 def timestamp_to_datetime(timestamp):
     if timestamp:
         timestamp = parser.parse(timestamp)
     else:
-        timestamp = dt.datetime(1, 1, 1)
+        timestamp = FIRST_TIMESTAMP
     return timestamp
 
 def get_new_timestamp():

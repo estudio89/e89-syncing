@@ -3,6 +3,8 @@ from django.http import HttpResponse
 from django.contrib.auth import get_backends
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
+from django.apps import apps
+from django.shortcuts import get_object_or_404
 import importlib
 
 import e89_syncing.syncing_utils
@@ -18,12 +20,14 @@ def get_data_from_server(request, identifier = None):
 
     print >>sys.stderr, 'GET DATA FROM SERVER: RECEIVED ' + str(data)
     token = data["token"]
+    UserModel = apps.get_model(settings.SYNC_USER_MODEL)
+    user = get_object_or_404(UserModel,**{settings.SYNC_TOKEN_ATTR:token})
 
     if identifier is not None:
-        response = DataSyncHelper.getModifiedDataForIdentifier(token = token, parameters = data, identifier = identifier)
+        response = DataSyncHelper.getModifiedDataForIdentifier(user = user, parameters = data, identifier = identifier)
     else:
         timestamp = data["timestamp"]
-        response = DataSyncHelper.getModifiedData(token = token, timestamp = timestamp)
+        response = DataSyncHelper.getModifiedData(user = user, timestamp = timestamp)
     print >>sys.stderr, 'GET DATA FROM SERVER: RESPONDED ' + str(response)
 
     return e89_syncing.syncing_utils._generate_user_response(json.dumps(response,ensure_ascii=False))
@@ -37,13 +41,16 @@ def send_data_to_server(request):
 
     print >>sys.stderr, 'SEND DATA TO SERVER: RECEIVED ' + str(data)
     token = data["token"]
+    UserModel = apps.get_model(settings.SYNC_USER_MODEL)
+    user = get_object_or_404(UserModel,**{settings.SYNC_TOKEN_ATTR:token})
+
     timestamp = data["timestamp"]
     if data.has_key('registration_id'):
         device_id = data['registration_id']
     else:
         device_id = data['device_id']
 
-    response = DataSyncHelper.saveNewData(token = token, timestamp = timestamp, device_id = device_id, data = data, files = request.FILES)
+    response = DataSyncHelper.saveNewData(user = user, timestamp = timestamp, device_id = device_id, data = data, files = request.FILES)
 
     print >>sys.stderr, 'SEND DATA TO SERVER: RESPONDED ' + str(response)
     return e89_syncing.syncing_utils._generate_user_response(json.dumps(response,ensure_ascii=False))
