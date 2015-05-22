@@ -46,6 +46,19 @@ def getModifiedData(user, timestamp, exclude = {}):
 	data["timestamp"] = get_new_timestamp()
 	return data
 
+def getEmptyModifiedDataResponse():
+	''' Retorna uma resposta vazia para todos os sync managers. Utilizado para responder a um usuário que não tem permissão
+		para acessar os dados. Esse método é utilizado somente para manter compatibilidade com versões anteriores.'''
+
+	data = {}
+	for sync_manager in E89SyncingConfig.get_sync_managers():
+		identifier = sync_manager.getIdentifier()
+		data[identifier] = {'data':[]}
+
+	data['logout'] = {'data':[],'logout':True}
+	data["timestamp"] = get_new_timestamp()
+	return data
+
 def getModifiedDataForIdentifier(user, parameters, identifier):
 	''' Busca dados especificamente para um identifier. Utilizado por clientes que
 		implementam cache parcial. '''

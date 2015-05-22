@@ -21,15 +21,18 @@ def get_data_from_server(request, identifier = None):
     print >>sys.stderr, 'GET DATA FROM SERVER: RECEIVED ' + str(data)
     token = data["token"]
     UserModel = apps.get_model(settings.SYNC_USER_MODEL)
-    user = get_object_or_404(UserModel,**{settings.SYNC_TOKEN_ATTR:token})
-
-    if identifier is not None:
-        response = DataSyncHelper.getModifiedDataForIdentifier(user = user, parameters = data, identifier = identifier)
+    try:
+        user = UserModel.objects.get(**{settings.SYNC_TOKEN_ATTR:token,settings.SYNC_TOKEN_ATTR + "__isnull":False})
+    except UserModel.DoesNotExist:
+        response = DataSyncHelper.getEmptyModifiedDataResponse()
     else:
-        timestamp = data["timestamp"]
-        response = DataSyncHelper.getModifiedData(user = user, timestamp = timestamp)
-    print >>sys.stderr, 'GET DATA FROM SERVER: RESPONDED ' + str(response)
+        if identifier is not None:
+            response = DataSyncHelper.getModifiedDataForIdentifier(user = user, parameters = data, identifier = identifier)
+        else:
+            timestamp = data["timestamp"]
+            response = DataSyncHelper.getModifiedData(user = user, timestamp = timestamp)
 
+    print >>sys.stderr, 'GET DATA FROM SERVER: RESPONDED ' + str(response)
     return e89_syncing.syncing_utils._generate_user_response(json.dumps(response,ensure_ascii=False))
 
 @csrf_exempt
