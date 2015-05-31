@@ -20,7 +20,7 @@ setup(
     url='http://www.estudio89.com.br/',
     author='Luccas Correa',
     author_email='luccascorrea@estudio89.com.br',
-    install_requires=['python-dateutil>=2.3'],
+    install_requires=['python-dateutil>=2.3','e89-security'],
     classifiers=[
         'Environment :: Web Environment',
         'Framework :: Django',

@@ -7,7 +7,7 @@ from django.apps import apps
 from django.shortcuts import get_object_or_404
 import importlib
 
-import e89_syncing.syncing_utils
+import e89_security.tools
 import DataSyncHelper
 import json
 import sys
@@ -16,7 +16,7 @@ import sys
 def get_data_from_server(request, identifier = None):
     if request.method != 'POST':
         return HttpResponse("")
-    data = e89_syncing.syncing_utils._get_user_data(request)
+    data = e89_security.tools._get_user_data(request, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False))
 
     print >>sys.stderr, 'GET DATA FROM SERVER: RECEIVED ' + str(data)
     token = data["token"]
@@ -33,14 +33,15 @@ def get_data_from_server(request, identifier = None):
             response = DataSyncHelper.getModifiedData(user = user, timestamp = timestamp)
 
     print >>sys.stderr, 'GET DATA FROM SERVER: RESPONDED ' + str(response)
-    return e89_syncing.syncing_utils._generate_user_response(json.dumps(response,ensure_ascii=False))
+
+    return e89_security.tools._generate_user_response(response, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False))
 
 @csrf_exempt
 def send_data_to_server(request):
     if request.method != 'POST':
         return HttpResponse("")
 
-    data = e89_syncing.syncing_utils._get_user_data(request)
+    data = e89_security.tools._get_user_data(request, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False))
 
     print >>sys.stderr, 'SEND DATA TO SERVER: RECEIVED ' + str(data)
     token = data["token"]
@@ -56,7 +57,7 @@ def send_data_to_server(request):
     response = DataSyncHelper.saveNewData(user = user, timestamp = timestamp, device_id = device_id, data = data, files = request.FILES)
 
     print >>sys.stderr, 'SEND DATA TO SERVER: RESPONDED ' + str(response)
-    return e89_syncing.syncing_utils._generate_user_response(json.dumps(response,ensure_ascii=False))
+    return e89_security.tools._generate_user_response(response, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False))
 
 @csrf_exempt
 def authenticate(request):
@@ -71,7 +72,7 @@ def authenticate(request):
 
     response = {}
     if request.method == "POST":
-        data = e89_syncing.syncing_utils._get_user_data(request)
+        data = e89_security.tools._get_user_data(request, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False))
 
         username = data["username"]
         password = data["password"]
@@ -81,5 +82,5 @@ def authenticate(request):
         SyncAuthentication = getattr(mod, class_name)
         response = SyncAuthentication().authenticate(username,password)
 
-    return e89_syncing.syncing_utils._generate_user_response(json.dumps(response,ensure_ascii=False))
+    return e89_security.tools._generate_user_response(response, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False))
 
