@@ -26,11 +26,13 @@ def get_data_from_server(request, identifier = None):
     except UserModel.DoesNotExist:
         response = DataSyncHelper.getEmptyModifiedDataResponse()
     else:
+        timestamp = data.get("timestamp") # maintains compatibility
+        timestamps = data.get("timestamps",{})
         if identifier is not None:
-            response = DataSyncHelper.getModifiedDataForIdentifier(user = user, parameters = data, identifier = identifier)
+            response = DataSyncHelper.getModifiedDataForIdentifier(user = user, parameters = data, identifier = identifier, timestamps = timestamps)
         else:
-            timestamp = data["timestamp"]
-            response = DataSyncHelper.getModifiedData(user = user, timestamp = timestamp)
+            assert timestamp is not None or timestamps != {}, "Timestamp was not sent along with data."
+            response = DataSyncHelper.getModifiedData(user = user, timestamp = timestamp, timestamps = timestamps)
 
     print >>sys.stderr, 'GET DATA FROM SERVER: RESPONDED ' + str(response)
 
@@ -48,13 +50,15 @@ def send_data_to_server(request):
     UserModel = apps.get_model(settings.SYNC_USER_MODEL)
     user = get_object_or_404(UserModel,**{settings.SYNC_TOKEN_ATTR:token})
 
-    timestamp = data["timestamp"]
+    timestamp = data.get("timestamp") # maintains compatibility
+    timestamps = data.get("timestamps",{})
+    assert timestamp is not None or timestamps != {}, "Timestamp was not sent along with data."
     if data.has_key('registration_id'):
         device_id = data['registration_id']
     else:
         device_id = data['device_id']
 
-    response = DataSyncHelper.saveNewData(user = user, timestamp = timestamp, device_id = device_id, data = data, files = request.FILES)
+    response = DataSyncHelper.saveNewData(user = user, timestamp = timestamp, timestamps = timestamps, device_id = device_id, data = data, files = request.FILES)
 
     print >>sys.stderr, 'SEND DATA TO SERVER: RESPONDED ' + str(response)
     return e89_security.tools._generate_user_response(response, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False))

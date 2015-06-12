@@ -23,7 +23,7 @@ def saveNewData(user, timestamp, device_id, data, files):
 
 	return response
 
-def getModifiedData(user, timestamp, exclude = {}):
+def getModifiedData(user, timestamps, timestamp = None, exclude = {}):
 	''' Percorre todos os SyncManagers solicitando que retornem quaisquer dados a serem
 		enviados ao client correspondente. O parâmetro exclude é um dicionário
 		de listas contendo ids que não devem ser buscados não query. Ex:
@@ -34,16 +34,17 @@ def getModifiedData(user, timestamp, exclude = {}):
 					...
 				  }
 		'''
-
-	timestamp = timestamp_to_datetime(timestamp)
-	data = {}
+	data = {"timestamps":{}}
 	for sync_manager in E89SyncingConfig.get_sync_managers():
 		identifier = sync_manager.getIdentifier()
+		timestamp = timestamps.get(identifier, timestamp)
+		timestamp = timestamp_to_datetime(timestamp)
 		manager_data,manager_parameters = sync_manager.getModifiedData(user = user, timestamp = timestamp, exclude = exclude.get(identifier,[]))
 		manager_parameters['data'] = manager_data
 		data[identifier] = manager_parameters
+		data["timestamps"][identifier] = get_new_timestamp()
 
-	data["timestamp"] = get_new_timestamp()
+	data["timestamp"] = get_new_timestamp() # Only to maintain compatibility
 	return data
 
 def getEmptyModifiedDataResponse():
@@ -56,17 +57,18 @@ def getEmptyModifiedDataResponse():
 		data[identifier] = {'data':[]}
 
 	data['logout'] = {'data':[],'logout':True}
-	data["timestamp"] = get_new_timestamp()
+	data["timestamp"] = get_new_timestamp() # Only to maintain compatibility
 	return data
 
-def getModifiedDataForIdentifier(user, parameters, identifier):
+def getModifiedDataForIdentifier(user, parameters, identifier, timestamps):
 	''' Busca dados especificamente para um identifier. Utilizado por clientes que
 		implementam cache parcial. '''
 
 	sync_manager = E89SyncingConfig.get_sync_manager(identifier)
 	if sync_manager is None:
 		raise Http404
-	manager_data,manager_parameters = sync_manager.getModifiedData(user = user, timestamp = timestamp_to_datetime(""), parameters = parameters)
+	timestamp = timestamps.get(sync_manager.getIdentifier(), "")
+	manager_data,manager_parameters = sync_manager.getModifiedData(user = user, timestamp = timestamp_to_datetime(timestamp), parameters = parameters)
 	manager_parameters['data'] = manager_data
 	return {sync_manager.getIdentifier():manager_parameters}
 
