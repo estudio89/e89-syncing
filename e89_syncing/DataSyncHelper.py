@@ -6,7 +6,7 @@ from django.db import transaction
 from e89_syncing.apps import E89SyncingConfig
 from e89_syncing.syncing_utils import *
 
-def saveNewData(user, timestamp, device_id, data, files):
+def saveNewData(user, timestamp, timestamps, device_id, data, files):
 	''' Percorre todos os SyncManagers solicitando que salvem os dados correspondentes.'''
 	with transaction.atomic():
 		response = {}
@@ -18,7 +18,7 @@ def saveNewData(user, timestamp, device_id, data, files):
 				response.update(manager_response)
 				new_objects[sync_manager.getIdentifier()] = [o.id for o in objects]
 
-	new_data = getModifiedData(user = user, timestamp = timestamp, exclude = new_objects)
+	new_data = getModifiedData(user = user, timestamp = timestamp, timestamps = timestamps, exclude = new_objects)
 	response.update(new_data)
 
 	return response
@@ -35,14 +35,27 @@ def getModifiedData(user, timestamps, timestamp = None, exclude = {}):
 				  }
 		'''
 	data = {"timestamps":{}}
+	coupled_sync_managers = []
 	for sync_manager in E89SyncingConfig.get_sync_managers():
 		identifier = sync_manager.getIdentifier()
-		timestamp = timestamps.get(identifier, timestamp)
+		coupled = E89SyncingConfig.get_coupled_sync_managers(identifier)
+		if timestamps:
+			timestamp = timestamps.get(identifier, None)
+			if timestamp is None and identifier not in coupled_sync_managers:
+				continue
+			else:
+				# coupled sync managers can send data in the same request
+				for sm in coupled: coupled_sync_managers.append(sm)
+
 		timestamp = timestamp_to_datetime(timestamp)
 		manager_data,manager_parameters = sync_manager.getModifiedData(user = user, timestamp = timestamp, exclude = exclude.get(identifier,[]))
 		manager_parameters['data'] = manager_data
 		data[identifier] = manager_parameters
-		data["timestamps"][identifier] = get_new_timestamp()
+		new_timestamp = get_new_timestamp()
+		data["timestamps"][identifier] = new_timestamp
+
+		# Synchronizing timestamps across coupled sync managers
+		for sm in coupled: data["timestamps"][sm] = new_timestamp
 
 	data["timestamp"] = get_new_timestamp() # Only to maintain compatibility
 	return data
@@ -70,7 +83,24 @@ def getModifiedDataForIdentifier(user, parameters, identifier, timestamps):
 	timestamp = timestamps.get(sync_manager.getIdentifier(), "")
 	manager_data,manager_parameters = sync_manager.getModifiedData(user = user, timestamp = timestamp_to_datetime(timestamp), parameters = parameters)
 	manager_parameters['data'] = manager_data
-	return {sync_manager.getIdentifier():manager_parameters}
+
+	data = {identifier:manager_parameters}
+	if timestamps.has_key(identifier): # Not paginating, but updating
+		coupled = E89SyncingConfig.get_coupled_sync_managers(identifier)
+		if not coupled:
+			data["timestamps"] = {identifier:get_new_timestamp()}
+		else:
+			data["timestamps"] = {}
+			for sm in coupled:
+				coupled_sync_manager = E89SyncingConfig.get_sync_manager(sm)
+				coupled_data,coupled_parameters = coupled_sync_manager.getModifiedData(user = user, timestamp = timestamp_to_datetime(timestamp), parameters = parameters)
+				coupled_parameters['data'] = coupled_data
+				data[sm] = coupled_parameters
+				new_timestamp = get_new_timestamp()
+				data["timestamps"][identifier] = new_timestamp
+				data["timestamps"][sm] = new_timestamp
+
+	return data
 
 
 

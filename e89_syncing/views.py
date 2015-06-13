@@ -18,7 +18,9 @@ def get_data_from_server(request, identifier = None):
         return HttpResponse("")
     data = e89_security.tools._get_user_data(request, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False))
 
-    print >>sys.stderr, 'GET DATA FROM SERVER: RECEIVED ' + str(data)
+    if getattr(settings, 'SYNC_DEBUG', False):
+        print >>sys.stderr, 'GET DATA FROM SERVER: RECEIVED ' + json.dumps(data, ensure_ascii=False)
+
     token = data["token"]
     UserModel = apps.get_model(settings.SYNC_USER_MODEL)
     try:
@@ -34,7 +36,8 @@ def get_data_from_server(request, identifier = None):
             assert timestamp is not None or timestamps != {}, "Timestamp was not sent along with data."
             response = DataSyncHelper.getModifiedData(user = user, timestamp = timestamp, timestamps = timestamps)
 
-    print >>sys.stderr, 'GET DATA FROM SERVER: RESPONDED ' + str(response)
+    if getattr(settings, 'SYNC_DEBUG', False):
+        print >>sys.stderr, 'GET DATA FROM SERVER: RESPONDED ' + json.dumps(response, ensure_ascii=False)
 
     return e89_security.tools._generate_user_response(response, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False))
 
@@ -45,7 +48,9 @@ def send_data_to_server(request):
 
     data = e89_security.tools._get_user_data(request, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False))
 
-    print >>sys.stderr, 'SEND DATA TO SERVER: RECEIVED ' + str(data)
+    if getattr(settings, 'SYNC_DEBUG', False):
+        print >>sys.stderr, 'SEND DATA TO SERVER: RECEIVED ' + json.dumps(data, ensure_ascii=False)
+
     token = data["token"]
     UserModel = apps.get_model(settings.SYNC_USER_MODEL)
     user = get_object_or_404(UserModel,**{settings.SYNC_TOKEN_ATTR:token})
@@ -60,7 +65,8 @@ def send_data_to_server(request):
 
     response = DataSyncHelper.saveNewData(user = user, timestamp = timestamp, timestamps = timestamps, device_id = device_id, data = data, files = request.FILES)
 
-    print >>sys.stderr, 'SEND DATA TO SERVER: RESPONDED ' + str(response)
+    if getattr(settings, 'SYNC_DEBUG', False):
+        print >>sys.stderr, 'SEND DATA TO SERVER: RESPONDED ' + json.dumps(response, ensure_ascii=False)
     return e89_security.tools._generate_user_response(response, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False))
 
 @csrf_exempt
