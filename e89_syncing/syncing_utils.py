@@ -22,3 +22,9 @@ def get_new_timestamp():
 
 def get_user_token(user, attr):
     return reduce(getattr, attr.split('.'), user)
+
+def extract_meta_data(data):
+    token = data.pop("token")
+    timestamp = data.pop("timestamp","") # maintains compatibility
+    timestamps = data.pop("timestamps",{})
+    return token, timestamp, timestamps

@@ -125,23 +125,23 @@ class BaseSyncManager(object):
 		pass
 
 	def getModifiedData(self, user, timestamp, parameters = None, exclude = []):
-		''' Busca dados novos a serem enviados. Deve retornar uma lista de objetos serializados e
-			um dicionário com parâmetros a serem repassados ao cliente.
-			O parâmetro exclude é uma lista de ids de objetos que devem ser desconsiderados na query.'''
+		''' Searches for new data to be sent. Must return a list of serialized items and a dictionary
+			containing parameters that should be passed back to the client.
+			The exclude parameter is a list of object ids that must not be considered in the query.'''
 		pass
 
 	def saveNewData(self, user, device_id, data, files = None):
-		''' Salva novos dados recebidos. Deve retornar 2 objetos:
-			1. Um dicionário que contém uma
-				lista com dados a serem enviados em resposta. O key do dicionário DEVE ser
-				igual ao ResponseIdentifier. Exemplo:
+		''' Saves new data received. Must return 2 objects:
+			1. A dictionary that contains a list with data to be sent in response.
+			   The key in the dictionary MUST be equal to the response identifier.
+				For instance:
 					{
-						"registros_id":[
+						"news_id":[
 							{"id":2,"id_client":1},
 							...
 						]
 					}
-			2. Lista com todos os objetos criados
+			2. List with all the objects that were created
 			'''
 
 		response = []
@@ -154,17 +154,14 @@ class BaseSyncManager(object):
 		return {self.getResponseIdentifier():response},new_objects
 
 	def saveObject(self, user, device_id, object, files = None):
-		''' Salva um objeto no banco. Deve retornar 2 objetos:
-			1. Um dicionário contendo dados a serem
-			enviados como resposta ao client. Por exemplo: {"id":1,"id_client":3}.
-			2. O objeto que foi salvo no banco
-
-			Para objetos compostos, pode ser utilizada uma lógica diferente aqui, mas nesse caso
-			o método saveNewData deverá ser reimplementado.'''
+		''' Saves an object in the database. Must return 2 objects:
+			1. A dictionary containing data to be sent in response to the client.
+			For example: {"id":1,"id_client":3}.
+			2. The object that was saved in the database.'''
 
 		pass
 
 	def serializeObject(self, object):
-		''' Método responsável por transformar um objeto em um dicionário a ser
-			convertido posteriormente em um JSON. Deve retornar um dicionário. '''
+		''' This method is responsible for transforming an object into a dictionary
+			that will be converted to json later. It must return a dictionary. '''
 		pass

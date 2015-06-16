@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404
 import importlib
 
 import e89_security.tools
+import e89_syncing.syncing_utils
 import DataSyncHelper
 import json
 import sys
@@ -21,15 +22,14 @@ def get_data_from_server(request, identifier = None):
     if getattr(settings, 'SYNC_DEBUG', False):
         print >>sys.stderr, 'GET DATA FROM SERVER: RECEIVED ' + json.dumps(data, ensure_ascii=False)
 
-    token = data["token"]
+    token, timestamp, timestamps = e89_syncing.syncing_utils.extract_meta_data(data)
     UserModel = apps.get_model(settings.SYNC_USER_MODEL)
     try:
         user = UserModel.objects.get(**{settings.SYNC_TOKEN_ATTR:token,settings.SYNC_TOKEN_ATTR + "__isnull":False})
     except UserModel.DoesNotExist:
         response = DataSyncHelper.getEmptyModifiedDataResponse()
     else:
-        timestamp = data.get("timestamp") # maintains compatibility
-        timestamps = data.get("timestamps",{})
+
         if identifier is not None:
             response = DataSyncHelper.getModifiedDataForIdentifier(user = user, parameters = data, identifier = identifier, timestamps = timestamps)
         else:
@@ -51,12 +51,10 @@ def send_data_to_server(request):
     if getattr(settings, 'SYNC_DEBUG', False):
         print >>sys.stderr, 'SEND DATA TO SERVER: RECEIVED ' + json.dumps(data, ensure_ascii=False)
 
-    token = data["token"]
+    token, timestamp, timestamps = e89_syncing.syncing_utils.extract_meta_data(data)
     UserModel = apps.get_model(settings.SYNC_USER_MODEL)
     user = get_object_or_404(UserModel,**{settings.SYNC_TOKEN_ATTR:token})
 
-    timestamp = data.get("timestamp") # maintains compatibility
-    timestamps = data.get("timestamps",{})
     assert timestamp is not None or timestamps != {}, "Timestamp was not sent along with data."
     if data.has_key('registration_id'):
         device_id = data['registration_id']
