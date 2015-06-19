@@ -4,6 +4,7 @@ e89_syncing/DataSyncHelper.py
 e89_syncing/__init__.py
 e89_syncing/apps.py
 e89_syncing/authentication.py
+e89_syncing/models.py
 e89_syncing/syncing_utils.py
 e89_syncing/urls.py
 e89_syncing/views.py

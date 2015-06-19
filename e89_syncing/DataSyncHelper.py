@@ -2,6 +2,7 @@
 from django.conf import settings
 from django.http import Http404
 from django.db import transaction
+from django.apps import apps
 
 from e89_syncing.apps import E89SyncingConfig
 from e89_syncing.syncing_utils import *
@@ -56,6 +57,8 @@ def getModifiedData(user, timestamps, timestamp = None, exclude = {}):
 
 		# Synchronizing timestamps across coupled sync managers
 		for sm in coupled: data["timestamps"][sm] = new_timestamp
+	SyncLog = apps.get_model('e89_syncing','SyncLog')
+	SyncLog.objects.store_timestamps(user, data["timestamps"])
 
 	data["timestamp"] = get_new_timestamp() # Only to maintain compatibility
 	return data
@@ -100,6 +103,8 @@ def getModifiedDataForIdentifier(user, parameters, identifier, timestamps):
 				data["timestamps"][identifier] = new_timestamp
 				data["timestamps"][sm] = new_timestamp
 
+		SyncLog = apps.get_model('e89_syncing','SyncLog')
+		SyncLog.objects.store_timestamps(user, data["timestamps"])
 	return data
 
 

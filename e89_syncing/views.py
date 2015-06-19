@@ -17,19 +17,30 @@ import sys
 def get_data_from_server(request, identifier = None):
     if request.method != 'POST':
         return HttpResponse("")
-    data = e89_security.tools._get_user_data(request, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False))
+
+    if not request.user.is_authenticated():
+        data = e89_security.tools._get_user_data(request, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False))
+        user = None
+    else:
+        # No encryption for logged in users
+        data = e89_security.tools._get_user_data(request, "", False)
+        user = e89_syncing.syncing_utils.get_user_object(request.user)
+        data["token"] = ""
 
     if getattr(settings, 'SYNC_DEBUG', False):
         print >>sys.stderr, 'GET DATA FROM SERVER: RECEIVED ' + json.dumps(data, ensure_ascii=False)
 
     token, timestamp, timestamps = e89_syncing.syncing_utils.extract_meta_data(data)
-    UserModel = apps.get_model(settings.SYNC_USER_MODEL)
-    try:
-        user = UserModel.objects.get(**{settings.SYNC_TOKEN_ATTR:token,settings.SYNC_TOKEN_ATTR + "__isnull":False})
-    except UserModel.DoesNotExist:
-        response = DataSyncHelper.getEmptyModifiedDataResponse()
-    else:
 
+    if user is None:
+        UserModel = apps.get_model(settings.SYNC_USER_MODEL)
+        try:
+            user = UserModel.objects.get(**{settings.SYNC_TOKEN_ATTR:token,settings.SYNC_TOKEN_ATTR + "__isnull":False})
+        except UserModel.DoesNotExist:
+            response = DataSyncHelper.getEmptyModifiedDataResponse()
+            user = None
+
+    if user is not None:
         if identifier is not None:
             response = DataSyncHelper.getModifiedDataForIdentifier(user = user, parameters = data, identifier = identifier, timestamps = timestamps)
         else:
@@ -39,7 +50,12 @@ def get_data_from_server(request, identifier = None):
     if getattr(settings, 'SYNC_DEBUG', False):
         print >>sys.stderr, 'GET DATA FROM SERVER: RESPONDED ' + json.dumps(response, ensure_ascii=False)
 
-    return e89_security.tools._generate_user_response(response, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False))
+    if not request.user.is_authenticated():
+        response = e89_security.tools._generate_user_response(response, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False))
+    else:
+        response = e89_security.tools._generate_user_response(response, "", False)
+
+    return response
 
 @csrf_exempt
 def send_data_to_server(request):
