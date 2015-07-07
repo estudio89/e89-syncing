@@ -17,7 +17,7 @@ def saveNewData(user, timestamp, timestamps, device_id, data, files):
 			if sync_manager is not None:
 				manager_response,objects = sync_manager.saveNewData(user = user, device_id = device_id, data = data[key], files = files)
 				response.update(manager_response)
-				new_objects[sync_manager.getIdentifier()] = [o.id for o in objects]
+				new_objects[sync_manager.getIdentifier()] = [o.id for o in objects if o is not None]
 
 	new_data = getModifiedData(user = user, timestamp = timestamp, timestamps = timestamps, exclude = new_objects)
 	response.update(new_data)
