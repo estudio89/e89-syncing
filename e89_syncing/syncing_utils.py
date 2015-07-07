@@ -3,11 +3,12 @@ from django.http import Http404
 from django.http import HttpResponse
 from django.apps import apps
 from django.conf import settings
+from django.utils import timezone
 from dateutil import parser
 import datetime as dt
 import json
 
-FIRST_TIMESTAMP = dt.datetime(1, 1, 1)
+FIRST_TIMESTAMP = timezone.now().replace(day=1,year=1,month=1,minute=0,hour=0,second=0,microsecond=0)
 def timestamp_to_datetime(timestamp):
     if isinstance(timestamp, dt.datetime):
         return timestamp
@@ -42,3 +43,35 @@ def get_user_object(user):
             related_attr = rel.get_accessor_name()
             return getattr(user, related_attr)
     raise ValueError("The user object returned by the authentication backend is from the model %s when it should be %s"%(user._meta.model_name, UserModel._meta.model_name))
+
+def check_performance(user, timestamps={}, print_results=True):
+    from django.db import connection
+    import time
+    from e89_syncing.apps import E89SyncingConfig
+
+    result = {}
+    initial_query_count = len(connection.queries)
+    initial_time = time.time()
+    for sync_manager in E89SyncingConfig.get_sync_managers():
+        identifier = sync_manager.getIdentifier()
+        queries_bf = len(connection.queries)
+        timestamp = timestamps.get(identifier, FIRST_TIMESTAMP)
+        time_bf = time.time()
+        manager_data,manager_parameters = sync_manager.getModifiedData(user = user, timestamp = timestamp)
+        time_taken = time.time() - time_bf
+        queries_performed = len(connection.queries) - queries_bf
+        result[identifier] = {
+            "queries_count":queries_performed,
+            "time_taken":time_taken,
+            "queries": connection.queries[queries_bf::]
+        }
+    total_queries = len(connection.queries) - initial_query_count
+    if print_results:
+        print "TOTAL NUMBER OF QUERIES:",total_queries
+        print "TOTAL TIME (s):", time.time() - initial_time
+        print "SLOWEST:",max(result.items(),key=lambda item:item[1]["time_taken"])[0]
+        print
+        print "identifier, time_taken","queries_count"
+        for sm in result.keys(): print sm,result[sm]["time_taken"],result[sm]["queries_count"]
+
+    return result
