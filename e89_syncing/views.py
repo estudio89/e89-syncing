@@ -23,7 +23,7 @@ def get_data_from_server(request, identifier = None):
         user = None
     else:
         # No encryption for logged in users
-        data = e89_security.tools._get_user_data(request, "", False)
+        data = e89_security.tools._get_user_data(request, "", False, multipart=False)
         user = e89_syncing.syncing_utils.get_user_object(request.user)
         data["token"] = ""
 
