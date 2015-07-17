@@ -2,6 +2,7 @@
 from django.db import models
 from django.conf import settings
 import e89_syncing.syncing_utils
+from e89_syncing.apps import E89SyncingConfig
 import json
 
 
@@ -10,6 +11,12 @@ class SyncLogManager(models.Manager):
 	def get_timestamps(self, user):
 		sl_list = self.filter(user=user)
 		timestamps = {}
+
+		# Adding default values
+		for sm in E89SyncingConfig.get_sync_managers():
+			identifier = sm.getIdentifier()
+			timestamps[identifier] = ""
+
 		for sl in sl_list:
 			timestamps[sl.identifier] = sl.timestamp.strftime("%Y-%m-%d %H:%M:%S.%f %Z")
 
