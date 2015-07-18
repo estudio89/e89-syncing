@@ -8,14 +8,14 @@ import json
 
 class SyncLogManager(models.Manager):
 
-	def get_timestamps(self, user):
+	def get_timestamps(self, user, default=""):
 		sl_list = self.filter(user=user)
 		timestamps = {}
 
 		# Adding default values
 		for sm in E89SyncingConfig.get_sync_managers():
 			identifier = sm.getIdentifier()
-			timestamps[identifier] = e89_syncing.syncing_utils.get_new_timestamp()
+			timestamps[identifier] = default
 
 		for sl in sl_list:
 			timestamps[sl.identifier] = sl.timestamp.strftime("%Y-%m-%d %H:%M:%S.%f %Z")
