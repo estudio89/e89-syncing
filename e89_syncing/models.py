@@ -15,7 +15,7 @@ class SyncLogManager(models.Manager):
 		# Adding default values
 		for sm in E89SyncingConfig.get_sync_managers():
 			identifier = sm.getIdentifier()
-			timestamps[identifier] = ""
+			timestamps[identifier] = e89_syncing.syncing_utils.get_new_timestamp()
 
 		for sl in sl_list:
 			timestamps[sl.identifier] = sl.timestamp.strftime("%Y-%m-%d %H:%M:%S.%f %Z")
