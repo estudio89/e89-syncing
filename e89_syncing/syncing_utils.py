@@ -8,7 +8,7 @@ from dateutil import parser
 import datetime as dt
 import json
 
-FIRST_TIMESTAMP = timezone.now().replace(day=1,year=1,month=1,minute=0,hour=0,second=0,microsecond=0)
+FIRST_TIMESTAMP = timezone.now().replace(day=1,year=1900,month=1,minute=0,hour=0,second=0,microsecond=0)
 def timestamp_to_datetime(timestamp):
     if isinstance(timestamp, dt.datetime):
         return timestamp
@@ -19,9 +19,12 @@ def timestamp_to_datetime(timestamp):
         timestamp = FIRST_TIMESTAMP
     return timestamp
 
+def datetime_to_timestamp(date):
+    return date.strftime("%Y-%m-%d %H:%M:%S.%f %Z")
+
 def get_new_timestamp():
     new_timestamp = timezone.now()
-    return new_timestamp.strftime("%Y-%m-%d %H:%M:%S.%f %Z")
+    return datetime_to_timestamp(new_timestamp)
 
 def get_user_token(user, attr):
     return reduce(getattr, attr.split('.'), user)
@@ -45,6 +48,8 @@ def get_user_object(user):
     raise ValueError("The user object returned by the authentication backend is from the model %s when it should be %s"%(user._meta.model_name, UserModel._meta.model_name))
 
 def check_performance(user, timestamps={}, print_results=True):
+    ''' Use this to check the number of queries run in order to fetch data for each sync manager as well as the time taken. '''
+
     from django.db import connection
     import time
     from e89_syncing.apps import E89SyncingConfig
