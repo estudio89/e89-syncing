@@ -13,13 +13,16 @@ import DataSyncHelper
 import json
 import sys
 
+def _is_gzip_active(request):
+    return request.META.get('HTTP_X_E89_SYNCING_VERSION', '1.0.4') >= '1.0.5'
+
 @csrf_exempt
 def get_data_from_server(request, identifier = None):
     if request.method != 'POST':
         return HttpResponse("")
 
     if not request.user.is_authenticated():
-        data = e89_security.tools._get_user_data(request, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False))
+        data = e89_security.tools._get_user_data(request, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False), gzip_active=_is_gzip_active(request))
         user = None
     else:
         # No encryption for logged in users
@@ -51,7 +54,7 @@ def get_data_from_server(request, identifier = None):
         print >>sys.stderr, 'GET DATA FROM SERVER: RESPONDED ' + json.dumps(response, ensure_ascii=False)
 
     if not request.user.is_authenticated():
-        response = e89_security.tools._generate_user_response(response, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False))
+        response = e89_security.tools._generate_user_response(response, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False), gzip_active=_is_gzip_active(request))
     else:
         response = e89_security.tools._generate_user_response(response, "", False)
 
@@ -62,7 +65,7 @@ def send_data_to_server(request):
     if request.method != 'POST':
         return HttpResponse("")
 
-    data = e89_security.tools._get_user_data(request, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False))
+    data = e89_security.tools._get_user_data(request, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False), gzip_active=_is_gzip_active(request))
 
     if getattr(settings, 'SYNC_DEBUG', False):
         print >>sys.stderr, 'SEND DATA TO SERVER: RECEIVED ' + json.dumps(data, ensure_ascii=False)
@@ -81,7 +84,7 @@ def send_data_to_server(request):
 
     if getattr(settings, 'SYNC_DEBUG', False):
         print >>sys.stderr, 'SEND DATA TO SERVER: RESPONDED ' + json.dumps(response, ensure_ascii=False)
-    return e89_security.tools._generate_user_response(response, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False))
+    return e89_security.tools._generate_user_response(response, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False), gzip_active=_is_gzip_active(request))
 
 @csrf_exempt
 def authenticate(request):
@@ -96,7 +99,7 @@ def authenticate(request):
 
     response = {}
     if request.method == "POST":
-        data = e89_security.tools._get_user_data(request, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False))
+        data = e89_security.tools._get_user_data(request, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False), gzip_active=_is_gzip_active(request))
 
         username = data["username"]
         password = data["password"]
@@ -106,5 +109,5 @@ def authenticate(request):
         SyncAuthentication = getattr(mod, class_name)
         response = SyncAuthentication().authenticate(username,password)
 
-    return e89_security.tools._generate_user_response(response, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False))
+    return e89_security.tools._generate_user_response(response, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False), gzip_active=_is_gzip_active(request))
 
