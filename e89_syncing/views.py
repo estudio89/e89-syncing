@@ -14,16 +14,12 @@ import json
 import sys
 
 @csrf_exempt
-def get_data_from_server(request, identifier = None):
-    if request.method != 'POST':
-        return HttpResponse("")
+@e89_security.tools.secure_view(encryption_key=getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), encryption_active=getattr(settings, "SYNC_ENCRYPTION", False))
+def get_data_from_server(request, data, identifier = None):
 
     if not request.user.is_authenticated():
-        data = e89_security.tools._get_user_data(request, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False))
         user = None
     else:
-        # No encryption for logged in users
-        data = e89_security.tools._get_user_data(request, "", False, multipart=False)
         user = e89_syncing.syncing_utils.get_user_object(request.user)
         data["token"] = ""
 
@@ -50,19 +46,11 @@ def get_data_from_server(request, identifier = None):
     if getattr(settings, 'SYNC_DEBUG', False):
         print >>sys.stderr, 'GET DATA FROM SERVER: RESPONDED ' + json.dumps(response, ensure_ascii=False)
 
-    if not request.user.is_authenticated():
-        response = e89_security.tools._generate_user_response(response, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False))
-    else:
-        response = e89_security.tools._generate_user_response(response, "", False)
-
     return response
 
 @csrf_exempt
-def send_data_to_server(request):
-    if request.method != 'POST':
-        return HttpResponse("")
-
-    data = e89_security.tools._get_user_data(request, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False))
+@e89_security.tools.secure_view(encryption_key=getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), encryption_active=getattr(settings, "SYNC_ENCRYPTION", False))
+def send_data_to_server(request, data):
 
     if getattr(settings, 'SYNC_DEBUG', False):
         print >>sys.stderr, 'SEND DATA TO SERVER: RECEIVED ' + json.dumps(data, ensure_ascii=False)
@@ -81,10 +69,11 @@ def send_data_to_server(request):
 
     if getattr(settings, 'SYNC_DEBUG', False):
         print >>sys.stderr, 'SEND DATA TO SERVER: RESPONDED ' + json.dumps(response, ensure_ascii=False)
-    return e89_security.tools._generate_user_response(response, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False))
+    return response
 
 @csrf_exempt
-def authenticate(request):
+@e89_security.tools.secure_view(encryption_key=getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), encryption_active=getattr(settings, "SYNC_ENCRYPTION", False))
+def authenticate(request, data):
     ''' View para autenticação. Deve receber como parâmetro (via POST), um json no formato:
 
         {
@@ -96,7 +85,6 @@ def authenticate(request):
 
     response = {}
     if request.method == "POST":
-        data = e89_security.tools._get_user_data(request, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False))
 
         username = data["username"]
         password = data["password"]
@@ -106,5 +94,5 @@ def authenticate(request):
         SyncAuthentication = getattr(mod, class_name)
         response = SyncAuthentication().authenticate(username,password)
 
-    return e89_security.tools._generate_user_response(response, getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), getattr(settings, "SYNC_ENCRYPTION", False))
+    return response
 
