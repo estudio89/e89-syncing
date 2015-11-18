@@ -13,3 +13,5 @@ e89_syncing.egg-info/SOURCES.txt
 e89_syncing.egg-info/dependency_links.txt
 e89_syncing.egg-info/requires.txt
 e89_syncing.egg-info/top_level.txt
+e89_syncing/migrations/0001_initial.py
+e89_syncing/migrations/__init__.py
