@@ -35,6 +35,9 @@ def extract_meta_data(data):
     timestamps = data.pop("timestamps",{})
     return token, timestamp, timestamps
 
+def get_platform(request):
+    return request.META.get('HTTP_X_E89_SYNCING_PLATFORM')
+
 def get_user_object(user):
     UserModel = apps.get_model(settings.SYNC_USER_MODEL)
     if user._meta.model == UserModel:
