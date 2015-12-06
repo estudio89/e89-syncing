@@ -9,12 +9,12 @@ from e89_syncing.syncing_utils import *
 
 def saveNewData(user, timestamp, timestamps, device_id, data, files, platform = None):
 	''' Percorre todos os SyncManagers solicitando que salvem os dados correspondentes.'''
-	with transaction.atomic():
-		response = {}
-		new_objects = {}
-		for key in data.keys():
-			sync_manager = E89SyncingConfig.get_sync_manager(key)
-			if sync_manager is not None:
+	response = {}
+	new_objects = {}
+	for key in data.keys():
+		sync_manager = E89SyncingConfig.get_sync_manager(key)
+		if sync_manager is not None:
+			with transaction.atomic():
 				manager_response,objects = sync_manager.saveNewData(user = user, device_id = device_id, data = data[key], files = files, platform = platform)
 				response.update(manager_response)
 				new_objects[sync_manager.getIdentifier()] = [o.id for o in objects if o is not None]
