@@ -7,9 +7,9 @@ import e89_syncing.syncing_utils
 
 class BaseSyncAuthentication(object):
 
-    def authenticate(self, username, password, platform):
+    def authenticate(self, username, password, platform, app_version):
         auth_backend = get_backends()[0]
-        user = auth_backend.authenticate(username=username,password=password, platform=platform)
+        user = auth_backend.authenticate(username=username,password=password, platform=platform, app_version=app_version)
 
         if not user:
             response = {"verified":False}
