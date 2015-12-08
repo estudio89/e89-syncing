@@ -38,6 +38,9 @@ def extract_meta_data(data):
 def get_platform(request):
     return request.META.get('HTTP_X_E89_SYNCING_PLATFORM')
 
+def get_app_version(request):
+    return request.META.get('HTTP_X_APP_VERSION')
+
 def get_user_object(user):
     UserModel = apps.get_model(settings.SYNC_USER_MODEL)
     if user._meta.model == UserModel:

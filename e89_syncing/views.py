@@ -28,6 +28,7 @@ def get_data_from_server(request, data, identifier = None):
 
     token, timestamp, timestamps = e89_syncing.syncing_utils.extract_meta_data(data)
     platform = e89_syncing.syncing_utils.get_platform(request)
+    app_version = e89_syncing.syncing_utils.get_app_version(request)
 
     if user is None:
         UserModel = apps.get_model(settings.SYNC_USER_MODEL)
@@ -39,10 +40,10 @@ def get_data_from_server(request, data, identifier = None):
 
     if user is not None:
         if identifier is not None:
-            response = DataSyncHelper.getModifiedDataForIdentifier(user = user, parameters = data, identifier = identifier, timestamps = timestamps, platform = platform)
+            response = DataSyncHelper.getModifiedDataForIdentifier(user = user, parameters = data, identifier = identifier, timestamps = timestamps, platform = platform, app_version = app_version)
         else:
             assert timestamp is not None or timestamps != {}, "Timestamp was not sent along with data."
-            response = DataSyncHelper.getModifiedData(user = user, timestamp = timestamp, timestamps = timestamps, platform = platform)
+            response = DataSyncHelper.getModifiedData(user = user, timestamp = timestamp, timestamps = timestamps, platform = platform, app_version = app_version)
 
     if getattr(settings, 'SYNC_DEBUG', False):
         print >>sys.stderr, 'GET DATA FROM SERVER: RESPONDED ' + json.dumps(response, ensure_ascii=False)
@@ -58,6 +59,7 @@ def send_data_to_server(request, data):
 
     token, timestamp, timestamps = e89_syncing.syncing_utils.extract_meta_data(data)
     platform = e89_syncing.syncing_utils.get_platform(request)
+    app_version = e89_syncing.syncing_utils.get_app_version(request)
 
     UserModel = apps.get_model(settings.SYNC_USER_MODEL)
     user = get_object_or_404(UserModel,**{settings.SYNC_TOKEN_ATTR:token})
@@ -68,7 +70,7 @@ def send_data_to_server(request, data):
     else:
         device_id = data['device_id']
 
-    response = DataSyncHelper.saveNewData(user = user, timestamp = timestamp, timestamps = timestamps, device_id = device_id, data = data, files = request.FILES, platform = platform)
+    response = DataSyncHelper.saveNewData(user = user, timestamp = timestamp, timestamps = timestamps, device_id = device_id, data = data, files = request.FILES, platform = platform, app_version = app_version)
 
     if getattr(settings, 'SYNC_DEBUG', False):
         print >>sys.stderr, 'SEND DATA TO SERVER: RESPONDED ' + json.dumps(response, ensure_ascii=False)
@@ -97,7 +99,8 @@ def authenticate(request, data):
         SyncAuthentication = getattr(mod, class_name)
 
         platform = e89_syncing.syncing_utils.get_platform(request)
-        response = SyncAuthentication().authenticate(username,password, platform=platform)
+        app_version = e89_syncing.syncing_utils.get_app_version(request)
+        response = SyncAuthentication().authenticate(username,password, platform=platform, app_version=app_version)
 
     return response
 
