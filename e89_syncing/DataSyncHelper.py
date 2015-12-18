@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 from django.conf import settings
 from django.http import Http404
-from django.db import transaction
+from django.db import transaction, OperationalError
 from django.apps import apps
-
 from e89_syncing.apps import E89SyncingConfig
 from e89_syncing.syncing_utils import *
+import time
 
 def saveNewData(user, timestamp, timestamps, device_id, data, files, platform = None, app_version = None):
 	''' Percorre todos os SyncManagers solicitando que salvem os dados correspondentes.'''
@@ -14,8 +14,19 @@ def saveNewData(user, timestamp, timestamps, device_id, data, files, platform = 
 	for key in data.keys():
 		sync_manager = E89SyncingConfig.get_sync_manager(key)
 		if sync_manager is not None:
+			attempts = 0
+			while attempts < 3:
+				try:
+					with transaction.atomic():
+						manager_response,objects = sync_manager.saveNewData(user = user, device_id = device_id, data = data[key], files = files, platform = platform, app_version = app_version)
+						break
+				except OperationalError as e:
+					attempts += 1
+					time.sleep(0.2)
+					if attempts == 3:
+						raise e
+
 			with transaction.atomic():
-				manager_response,objects = sync_manager.saveNewData(user = user, device_id = device_id, data = data[key], files = files, platform = platform, app_version = app_version)
 				response.update(manager_response)
 				new_objects[sync_manager.getIdentifier()] = [o.id for o in objects if o is not None]
 
