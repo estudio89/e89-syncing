@@ -69,7 +69,10 @@ def send_data_to_server(request, data):
         else:
             device_id = data['device_id']
 
-        response = DataSyncHelper.saveNewData(user = user, timestamp = timestamp, timestamps = timestamps, device_id = device_id, data = data, files = request.FILES, platform = platform, app_version = app_version)
+        try:
+            response = DataSyncHelper.saveNewData(user = user, timestamp = timestamp, timestamps = timestamps, device_id = device_id, data = data, files = request.FILES, platform = platform, app_version = app_version)
+        except DataSyncHelper.ExpiredTokenException:
+            response = DataSyncHelper.getExpiredTokenResponse()
 
     if getattr(settings, 'SYNC_DEBUG', False):
         print >>sys.stderr, 'SEND DATA TO SERVER: RESPONDED ' + json.dumps(response, ensure_ascii=False)
