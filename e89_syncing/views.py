@@ -31,19 +31,17 @@ def get_data_from_server(request, data, identifier = None):
     app_version = e89_syncing.syncing_utils.get_app_version(request)
 
     if user is None:
-        UserModel = apps.get_model(settings.SYNC_USER_MODEL)
-        try:
-            user = UserModel.objects.get(**{settings.SYNC_TOKEN_ATTR:token,settings.SYNC_TOKEN_ATTR + "__isnull":False})
-        except UserModel.DoesNotExist:
-            response = DataSyncHelper.getEmptyModifiedDataResponse()
-            user = None
+        user,response = e89_syncing.syncing_utils.get_user_from_token(token)
 
     if user is not None:
-        if identifier is not None:
-            response = DataSyncHelper.getModifiedDataForIdentifier(user = user, parameters = data, identifier = identifier, timestamps = timestamps, platform = platform, app_version = app_version)
-        else:
-            assert timestamp is not None or timestamps != {}, "Timestamp was not sent along with data."
-            response = DataSyncHelper.getModifiedData(user = user, timestamp = timestamp, timestamps = timestamps, platform = platform, app_version = app_version)
+        try:
+            if identifier is not None:
+                response = DataSyncHelper.getModifiedDataForIdentifier(user = user, parameters = data, identifier = identifier, timestamps = timestamps, platform = platform, app_version = app_version)
+            else:
+                assert timestamp is not None or timestamps != {}, "Timestamp was not sent along with data."
+                response = DataSyncHelper.getModifiedData(user = user, timestamp = timestamp, timestamps = timestamps, platform = platform, app_version = app_version)
+        except DataSyncHelper.ExpiredTokenException:
+            response = DataSyncHelper.getExpiredTokenResponse()
 
     if getattr(settings, 'SYNC_DEBUG', False):
         print >>sys.stderr, 'GET DATA FROM SERVER: RESPONDED ' + json.dumps(response, ensure_ascii=False)
@@ -62,15 +60,16 @@ def send_data_to_server(request, data):
     app_version = e89_syncing.syncing_utils.get_app_version(request)
 
     UserModel = apps.get_model(settings.SYNC_USER_MODEL)
-    user = get_object_or_404(UserModel,**{settings.SYNC_TOKEN_ATTR:token})
+    user,response = e89_syncing.syncing_utils.get_user_from_token(token)
 
-    assert timestamp is not None or timestamps != {}, "Timestamp was not sent along with data."
-    if data.has_key('registration_id'):
-        device_id = data['registration_id']
-    else:
-        device_id = data['device_id']
+    if user is not None:
+        assert timestamp is not None or timestamps != {}, "Timestamp was not sent along with data."
+        if data.has_key('registration_id'):
+            device_id = data['registration_id']
+        else:
+            device_id = data['device_id']
 
-    response = DataSyncHelper.saveNewData(user = user, timestamp = timestamp, timestamps = timestamps, device_id = device_id, data = data, files = request.FILES, platform = platform, app_version = app_version)
+        response = DataSyncHelper.saveNewData(user = user, timestamp = timestamp, timestamps = timestamps, device_id = device_id, data = data, files = request.FILES, platform = platform, app_version = app_version)
 
     if getattr(settings, 'SYNC_DEBUG', False):
         print >>sys.stderr, 'SEND DATA TO SERVER: RESPONDED ' + json.dumps(response, ensure_ascii=False)

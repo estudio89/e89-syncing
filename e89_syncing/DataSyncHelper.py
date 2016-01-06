@@ -74,17 +74,24 @@ def getModifiedData(user, timestamps, timestamp = None, exclude = {}, platform =
 	data["timestamp"] = get_new_timestamp() # Only to maintain compatibility
 	return data
 
-def getEmptyModifiedDataResponse():
-	''' Retorna uma resposta vazia para todos os sync managers. Utilizado para responder a um usuário que não tem permissão
-		para acessar os dados. Esse método é utilizado somente para manter compatibilidade com versões anteriores.'''
+def getExpiredTokenResponse():
+	''' Returns an empty response to all sync managers. Used when replying to a user that
+		is not allowed to access data.'''
 
 	data = {}
 	for sync_manager in E89SyncingConfig.get_sync_managers():
 		identifier = sync_manager.getIdentifier()
 		data[identifier] = {'data':[]}
 
-	data['logout'] = {'data':[],'logout':True}
+	expirable_token = getattr(settings, 'SYNC_EXPIRABLE_TOKEN', False)
+	if expirable_token:
+		data['expiredToken'] = {'data': [], 'expiredToken':True}
+	else:
+		data['logout'] = {'data':[],'logout':True}
+
 	data["timestamp"] = get_new_timestamp() # Only to maintain compatibility
+	data["timestamps"] = {}
+
 	return data
 
 def getModifiedDataForIdentifier(user, parameters, identifier, timestamps, platform = None, app_version = None):
@@ -181,3 +188,7 @@ class BaseSyncManager(object):
 		''' This method is responsible for transforming an object into a dictionary
 			that will be converted to json later. It must return a dictionary. '''
 		pass
+
+class ExpiredTokenException(Exception):
+	pass
+

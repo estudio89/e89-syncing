@@ -29,6 +29,13 @@ def get_new_timestamp():
 def get_user_token(user, attr):
     return reduce(getattr, attr.split('.'), user)
 
+def get_user_id(user, attr):
+    if attr is None:
+        attr = 'id'
+
+    return get_user_token(user, attr)
+
+
 def extract_meta_data(data):
     token = data.pop("token")
     timestamp = data.pop("timestamp","") # maintains compatibility
@@ -52,6 +59,17 @@ def get_user_object(user):
             related_attr = rel.get_accessor_name()
             return getattr(user, related_attr)
     raise ValueError("The user object returned by the authentication backend is from the model %s when it should be %s"%(user._meta.model_name, UserModel._meta.model_name))
+
+def get_user_from_token(token):
+    UserModel = apps.get_model(settings.SYNC_USER_MODEL)
+    response = None
+    try:
+        user = UserModel.objects.get(**{settings.SYNC_TOKEN_ATTR:token,settings.SYNC_TOKEN_ATTR + "__isnull":False})
+    except UserModel.DoesNotExist:
+        import DataSyncHelper
+        response = DataSyncHelper.getExpiredTokenResponse()
+        user = None
+    return user,response
 
 def check_performance(user, timestamps={}, print_results=True):
     ''' Use this to check the number of queries run in order to fetch data for each sync manager as well as the time taken. '''
