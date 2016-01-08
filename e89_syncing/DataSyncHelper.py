@@ -3,9 +3,12 @@ from django.conf import settings
 from django.http import Http404
 from django.db import transaction, OperationalError
 from django.apps import apps
+from django.shortcuts import get_object_or_404
 from e89_syncing.apps import E89SyncingConfig
 from e89_syncing.syncing_utils import *
+from e89_tools.tools import camelcase_underscore
 import time
+from rest_framework.exceptions import ValidationError
 
 def saveNewData(user, timestamp, timestamps, device_id, data, files, platform = None, app_version = None):
 	''' Percorre todos os SyncManagers solicitando que salvem os dados correspondentes.'''
@@ -74,17 +77,24 @@ def getModifiedData(user, timestamps, timestamp = None, exclude = {}, platform =
 	data["timestamp"] = get_new_timestamp() # Only to maintain compatibility
 	return data
 
-def getEmptyModifiedDataResponse():
-	''' Retorna uma resposta vazia para todos os sync managers. Utilizado para responder a um usuário que não tem permissão
-		para acessar os dados. Esse método é utilizado somente para manter compatibilidade com versões anteriores.'''
+def getExpiredTokenResponse():
+	''' Returns an empty response to all sync managers. Used when replying to a user that
+		is not allowed to access data.'''
 
 	data = {}
 	for sync_manager in E89SyncingConfig.get_sync_managers():
 		identifier = sync_manager.getIdentifier()
 		data[identifier] = {'data':[]}
 
-	data['logout'] = {'data':[],'logout':True}
+	expirable_token = getattr(settings, 'SYNC_EXPIRABLE_TOKEN', False)
+	if expirable_token:
+		data['expiredToken'] = {'data': [], 'expiredToken':True}
+	else:
+		data['logout'] = {'data':[],'logout':True}
+
 	data["timestamp"] = get_new_timestamp() # Only to maintain compatibility
+	data["timestamps"] = {}
+
 	return data
 
 def getModifiedDataForIdentifier(user, parameters, identifier, timestamps, platform = None, app_version = None):
@@ -181,3 +191,191 @@ class BaseSyncManager(object):
 		''' This method is responsible for transforming an object into a dictionary
 			that will be converted to json later. It must return a dictionary. '''
 		pass
+
+class PaginatedSyncManager(BaseSyncManager):
+	app_model = ''
+	page_size = 10
+	serializer = None
+	serializer_context_user_key = None
+	prefetch_params = []
+	allow_creation = False
+	pagination_parameter = "max_date"
+
+	def getModifiedData(self, user, timestamp, parameters = None, exclude = [], platform = None, app_version = None):
+		''' Searches for new data to be sent. Must return a list of serialized items and a dictionary
+			containing parameters that should be passed back to the client.
+			The exclude parameter is a list of object ids that must not be considered in the query.'''
+
+		# Total of 8 queries
+		is_paginating_or_first_fetch = self._check_is_paginating(parameters) or timestamp == FIRST_TIMESTAMP
+		if parameters is None:
+			parameters = {}
+		merged_exclude = set(exclude + parameters.pop('exclude',[]))
+
+		# Loading models and getting user
+		Model = apps.get_model(self.app_model)
+
+		# Fetching objects and paginating
+		objects = Model.objects.get_sync_items(user=user,timestamp=timestamp, **parameters).prefetch_related(*self.prefetch_params).exclude(id__in=merged_exclude)
+		response_parameters = {}
+		if self.page_size is not None:
+			response_parameters = self._get_pagination_response_parameters(objects, timestamp, parameters, is_paginating_or_first_fetch)
+
+		if self.page_size is not None:
+			objects = objects[:self.page_size]
+
+		# Serialization
+		user_key = self.serializer_context_user_key if self.serializer_context_user_key else "user"
+		s = self.serializer(list(objects), context={user_key:user, 'timestamp': timestamp}, many=True)
+		serialized = s.data
+		return serialized, response_parameters
+
+	def _get_number_new_items(self, objects, timestamp, is_paginating_or_first_fetch):
+		return len(objects) if type(objects) == type([]) else objects.count()
+
+	def _get_pagination_response_parameters(self, objects, timestamp, request_params, is_paginating_or_first_fetch):
+		''' Returns the pagination parameters necessary for the client to know what to do.
+			It checks to see if there are more items in the server than the ones being sent
+			and checks if there is a gap between the data the user has and what is in the server,
+			in which case the client must delete all its cached items.'''
+
+		response_parameters = {}
+		number_items = self._get_number_new_items(objects, timestamp, is_paginating_or_first_fetch)
+		if is_paginating_or_first_fetch:
+			response_parameters['more'] = self.page_size < number_items
+		else:
+			response_parameters['deleteCache'] = number_items > self.page_size
+			if response_parameters['deleteCache']:
+				response_parameters['more'] = True
+		return response_parameters
+
+	def _check_is_paginating(self, parameters):
+		return parameters is not None and parameters.has_key(self.pagination_parameter)
+
+	def saveNewData(self, user, device_id, data, files = None, platform = None, app_version = None):
+		''' Saves new data received. Must return 2 objects:
+			1. A dictionary that contains a list with data to be sent in response.
+			   The key in the dictionary MUST be equal to the response identifier.
+				For instance:
+					{
+						"news_id":[
+							{"id":2,"id_client":1},
+							...
+						]
+					}
+			2. List with all the objects that were created
+			'''
+		response = []
+		new_objects = []
+		for object in data:
+			object_response, new_object = self.saveObject(user = user, device_id = device_id, object = object, files = files, platform = platform, app_version = app_version)
+			response.append(object_response)
+			new_objects.append(new_object)
+
+		return {self.getResponseIdentifier():response},new_objects
+
+	def saveObject(self, user, device_id, object, files = None, platform = None, app_version = None):
+		''' Saves an object in the database. Must return 2 objects:
+			1. A dictionary containing data to be sent in response to the client.
+			For example: {"id":1,"id_client":3}.
+			2. The object that was saved in the database.'''
+
+		Model = apps.get_model(self.app_model)
+		device_id = object.get("deviceId", device_id)
+		if 'idClient' in Model._meta.get_all_field_names() and object.has_key("idClient") and device_id is not None and Model.objects.filter(idClient=object['idClient'], deviceId=device_id).exists():
+			instance = Model.objects.filter(idClient=object['idClient'], deviceId=device_id).first()
+		elif object.has_key("id"):
+			instance = get_object_or_404(Model,id=object['id'])
+		elif self.allow_creation:
+			instance = None # Creating object
+		else:
+			raise Http404
+		user_key = self.serializer_context_user_key if self.serializer_context_user_key else "user"
+		s = self.serializer(instance, data=object, context={user_key:user,'device_id':device_id})
+		try:
+			s.is_valid(raise_exception=True)
+			saved_obj = s.save(**object)
+		except ValidationError, e:
+			if self.allow_creation and s._errors.has_key("non_field_errors"):
+				try:
+					saved_obj = Model.objects.get(idClient=object["idClient"], deviceId=device_id)
+				except Model.DoesNotExist:
+					raise e
+			else:
+				raise e
+
+
+		return {"id":saved_obj.id, "idClient":object.get("idClient", None)},saved_obj
+
+
+	def serializeObject(self, object):
+		''' This method is responsible for transforming an object into a dictionary
+			that will be converted to json later. It must return a dictionary. '''
+
+		return {}
+
+class ObjectDeletedSyncManager(BaseSyncManager):
+	app_model = ''
+	owner_attr = None
+
+	def getModifiedData(self, user, timestamp, parameters = None, exclude = [], platform = None, app_version = None):
+		''' Searches for new data to be sent. Must return a list of serialized items and a dictionary
+			containing parameters that should be passed back to the client.
+			The exclude parameter is a list of object ids that must not be considered in the query.'''
+
+		# Loading models and getting employee
+		employee = user
+		try:
+			ModelDeleted = apps.get_model(self.app_model + 'Deleted')
+		except LookupError:
+			ModelDeleted = None
+		ModelToDelete = apps.get_model(self.app_model + 'ToDelete')
+		fk_attr = camelcase_underscore(self.app_model.split('.')[1]) + '_id'
+
+		if timestamp == FIRST_TIMESTAMP: # First fetch
+			deleted = []
+		else:
+			owner_attr = self.owner_attr if self.owner_attr else "user"
+			owner_attr += "_id"
+			deleted = list(ModelToDelete.objects.filter(**{"timestamp__gt":timestamp,owner_attr:employee.id}).values(fk_attr))
+			if ModelDeleted:
+				deleted += list(ModelDeleted.objects.filter(timestamp__gt=timestamp).values(fk_attr))
+			attr = camelcase_underscore(self.app_model.split('.')[1]) + '_id'
+			deleted = {v[attr]:v for v in deleted}.values()
+
+		response_parameters = {}
+		return deleted, response_parameters
+
+	def saveNewData(self, user, device_id, data, files = None, platform = None, app_version = None):
+		''' Saves new data received. Must return 2 objects:
+			1. A dictionary that contains a list with data to be sent in response.
+			   The key in the dictionary MUST be equal to the response identifier.
+				For instance:
+					{
+						"news_id":[
+							{"id":2,"id_client":1},
+							...
+						]
+					}
+			2. List with all the objects that were created
+			'''
+
+		return {},[]
+
+	def saveObject(self, user, device_id, object, files = None, platform = None, app_version = None):
+		''' Saves an object in the database. Must return 2 objects:
+			1. A dictionary containing data to be sent in response to the client.
+			For example: {"id":1,"id_client":3}.
+			2. The object that was saved in the database.'''
+
+		return {},None
+
+
+	def serializeObject(self, object):
+		''' This method is responsible for transforming an object into a dictionary
+			that will be converted to json later. It must return a dictionary. '''
+		return {}
+
+class ExpiredTokenException(Exception):
+	pass
+

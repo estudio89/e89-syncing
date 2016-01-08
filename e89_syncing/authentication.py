@@ -16,7 +16,7 @@ class BaseSyncAuthentication(object):
         else:
             user = e89_syncing.syncing_utils.get_user_object(user)
             try:
-                response = {"verified":True,"token":e89_syncing.syncing_utils.get_user_token(user, settings.SYNC_TOKEN_ATTR)}
+                response = {"verified":True,"token":e89_syncing.syncing_utils.get_user_token(user, settings.SYNC_TOKEN_ATTR), "id": e89_syncing.syncing_utils.get_user_id(user, getattr(settings,"SYNC_ID_ATTR",None))}
             except AttributeError:
                 response = {"verified":False}
 
