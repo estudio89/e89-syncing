@@ -192,7 +192,7 @@ class BaseSyncManager(object):
 			that will be converted to json later. It must return a dictionary. '''
 		pass
 
-class PaginatedSyncManager(BaseSyncManager):
+class AbstractSyncManager(BaseSyncManager):
 	app_model = ''
 	page_size = 10
 	serializer = None
@@ -268,9 +268,12 @@ class PaginatedSyncManager(BaseSyncManager):
 		response = []
 		new_objects = []
 		for object in data:
-			object_response, new_object = self.saveObject(user = user, device_id = device_id, object = object, files = files, platform = platform, app_version = app_version)
-			response.append(object_response)
-			new_objects.append(new_object)
+			try:
+				object_response, new_object = self.saveObject(user = user, device_id = device_id, object = object, files = files, platform = platform, app_version = app_version)
+				response.append(object_response)
+				new_objects.append(new_object)
+			except Http404:
+				self.handleObjectNotFound(user = user, device_id = device_id, object = object, files = files, platform = platform, app_version = app_version)
 
 		return {self.getResponseIdentifier():response},new_objects
 
@@ -313,6 +316,9 @@ class PaginatedSyncManager(BaseSyncManager):
 			that will be converted to json later. It must return a dictionary. '''
 
 		return {}
+
+	def handleObjectNotFound(self, user, device_id, object, files = None, platform = None, app_version = None):
+		raise Http404
 
 class ObjectDeletedSyncManager(BaseSyncManager):
 	app_model = ''
