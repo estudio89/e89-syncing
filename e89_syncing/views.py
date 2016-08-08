@@ -14,7 +14,7 @@ import json
 import sys
 
 @csrf_exempt
-@e89_security.tools.secure_view(encryption_key=getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), encryption_active=getattr(settings, "SYNC_ENCRYPTION", False))
+@e89_security.tools.secure_view(encryption_key=lambda: getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), encryption_active=lambda: getattr(settings, "SYNC_ENCRYPTION", False))
 def get_data_from_server(request, data, identifier = None):
 
     if not request.user.is_authenticated():
@@ -49,7 +49,7 @@ def get_data_from_server(request, data, identifier = None):
     return response
 
 @csrf_exempt
-@e89_security.tools.secure_view(encryption_key=getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), encryption_active=getattr(settings, "SYNC_ENCRYPTION", False))
+@e89_security.tools.secure_view(encryption_key=lambda: getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), encryption_active=lambda: getattr(settings, "SYNC_ENCRYPTION", False))
 def send_data_to_server(request, data):
 
     if getattr(settings, 'SYNC_DEBUG', False):
@@ -79,7 +79,7 @@ def send_data_to_server(request, data):
     return response
 
 @csrf_exempt
-@e89_security.tools.secure_view(encryption_key=getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), encryption_active=getattr(settings, "SYNC_ENCRYPTION", False))
+@e89_security.tools.secure_view(encryption_key=lambda: getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), encryption_active=lambda: getattr(settings, "SYNC_ENCRYPTION", False))
 def authenticate(request, data):
     ''' View para autenticação. Deve receber como parâmetro (via POST), um json no formato:
 
