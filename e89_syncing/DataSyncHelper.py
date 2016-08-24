@@ -226,7 +226,7 @@ class AbstractSyncManager(BaseSyncManager):
 
 		# Serialization
 		user_key = self.serializer_context_user_key if self.serializer_context_user_key else "user"
-		s = self.serializer(list(objects), context={user_key:user, 'timestamp': timestamp}, many=True)
+		s = self.serializer(list(objects), context={user_key:user, 'timestamp': timestamp, 'platform': platform, 'app_version': app_version}, many=True)
 		serialized = s.data
 		return serialized, response_parameters
 

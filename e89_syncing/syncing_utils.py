@@ -43,7 +43,7 @@ def extract_meta_data(data):
     return token, timestamp, timestamps
 
 def get_platform(request):
-    return request.META.get('HTTP_X_E89_SYNCING_PLATFORM')
+    return request.META.get('HTTP_X_E89_SYNCING_PLATFORM') if not request.user.is_authenticated() else "web"
 
 def get_app_version(request):
     return request.META.get('HTTP_X_APP_VERSION')
