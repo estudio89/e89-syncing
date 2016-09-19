@@ -6,7 +6,9 @@ from django.db import models, migrations
 
 class Migration(migrations.Migration):
 
-    dependencies = []
+    dependencies = [
+        (settings.SYNC_USER_MODEL.split(".")[0], "0001_initial")
+    ]
 
     operations = [
         migrations.CreateModel(

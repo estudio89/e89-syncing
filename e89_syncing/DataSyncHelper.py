@@ -294,7 +294,7 @@ class AbstractSyncManager(BaseSyncManager):
 		else:
 			raise Http404
 		user_key = self.serializer_context_user_key if self.serializer_context_user_key else "user"
-		s = self.serializer(instance, data=object, context={user_key:user,'device_id':device_id})
+		s = self.serializer(instance, data=object, context={user_key:user,'device_id':device_id, 'files':files})
 		try:
 			s.is_valid(raise_exception=True)
 			saved_obj = s.save(**object)

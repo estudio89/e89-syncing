@@ -27,7 +27,7 @@ def get_new_timestamp():
     return datetime_to_timestamp(new_timestamp)
 
 def get_user_token(user, attr):
-    return reduce(getattr, attr.split('.'), user)
+    return reduce(getattr, attr.split('__'), user)
 
 def get_user_id(user, attr):
     if attr is None:
