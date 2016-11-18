@@ -11,7 +11,7 @@ os.chdir(os.path.normpath(os.path.join(os.path.abspath(__file__), os.pardir)))
 
 setup(
     name='e89-syncing',
-    version='1.0.17',
+    version='1.0.19',
     packages=['e89_syncing', 'e89_syncing.migrations'],
     include_package_data=True,
     license='BSD License',  # example license

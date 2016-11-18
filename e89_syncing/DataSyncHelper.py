@@ -4,6 +4,7 @@ from django.http import Http404
 from django.db import transaction, OperationalError
 from django.apps import apps
 from django.shortcuts import get_object_or_404
+from django.core.exceptions import FieldDoesNotExist
 from e89_syncing.apps import E89SyncingConfig
 from e89_syncing.syncing_utils import *
 from e89_tools.tools import camelcase_underscore
@@ -143,12 +144,18 @@ class BaseSyncManager(object):
 			}
 
 			'''
-		pass
+		if hasattr(self, "identifier"):
+			return self.identifier
+		else:
+			raise NotImplementedError
 
 	def getResponseIdentifier(self):
 		''' Deve retornar um identificador para a resposta de recebimento de dados
 			do client. Para'''
-		pass
+		if hasattr(self, "response_identifier"):
+			return self.response_identifier
+		else:
+			raise NotImplementedError
 
 	def getModifiedData(self, user, timestamp, parameters = None, exclude = [], platform = None, app_version = None):
 		''' Searches for new data to be sent. Must return a list of serialized items and a dictionary
@@ -192,6 +199,13 @@ class BaseSyncManager(object):
 			that will be converted to json later. It must return a dictionary. '''
 		pass
 
+	def check_has_field(self, Model, field_name):
+		try:
+			field = Model._meta.get_field(field_name)
+			return True
+		except FieldDoesNotExist:
+			return False
+
 class AbstractSyncManager(BaseSyncManager):
 	app_model = ''
 	page_size = 10
@@ -200,6 +214,7 @@ class AbstractSyncManager(BaseSyncManager):
 	prefetch_params = []
 	allow_creation = False
 	pagination_parameter = "max_date"
+	extra_serializer_kwargs = {}
 
 	def getModifiedData(self, user, timestamp, parameters = None, exclude = [], platform = None, app_version = None):
 		''' Searches for new data to be sent. Must return a list of serialized items and a dictionary
@@ -226,9 +241,13 @@ class AbstractSyncManager(BaseSyncManager):
 
 		# Serialization
 		user_key = self.serializer_context_user_key if self.serializer_context_user_key else "user"
-		s = self.serializer(list(objects), context={user_key:user, 'timestamp': timestamp, 'platform': platform, 'app_version': app_version}, many=True)
+		extra_serializer_kwargs = self.extra_serializer_kwargs or {}
+		s = self.serializer(list(objects), context={user_key:user, 'timestamp': timestamp, 'platform': platform, 'app_version': app_version}, many=True, **extra_serializer_kwargs)
 		serialized = s.data
 		return serialized, response_parameters
+
+	def getExtraSerializerKwargs(self):
+		return {}
 
 	def _get_number_new_items(self, objects, timestamp, is_paginating_or_first_fetch):
 		return len(objects) if type(objects) == type([]) else objects.count()
@@ -277,15 +296,22 @@ class AbstractSyncManager(BaseSyncManager):
 
 		return {self.getResponseIdentifier():response},new_objects
 
+	def isAllowed(self, user, device_id, object, files = None, platform = None, app_version = None):
+		''' Returns True if the object can be created/updated or False otherwise.'''
+		return True
+
 	def saveObject(self, user, device_id, object, files = None, platform = None, app_version = None):
 		''' Saves an object in the database. Must return 2 objects:
 			1. A dictionary containing data to be sent in response to the client.
 			For example: {"id":1,"id_client":3}.
 			2. The object that was saved in the database.'''
 
+		if not self.isAllowed(user=user, device_id=device_id, object=object, files=files, platform=platform, app_version=app_version):
+			return {"idClient": object.get("idClient"), "id":-1}, None
+
 		Model = apps.get_model(self.app_model)
 		device_id = object.get("deviceId", device_id)
-		if 'idClient' in Model._meta.get_all_field_names() and object.has_key("idClient") and device_id is not None and Model.objects.filter(idClient=object['idClient'], deviceId=device_id).exists():
+		if self.check_has_field(Model, 'idClient') and object.has_key("idClient") and device_id is not None and Model.objects.filter(idClient=object['idClient'], deviceId=device_id).exists():
 			instance = Model.objects.filter(idClient=object['idClient'], deviceId=device_id).first()
 		elif object.has_key("id"):
 			instance = get_object_or_404(Model,id=object['id'])
@@ -294,7 +320,12 @@ class AbstractSyncManager(BaseSyncManager):
 		else:
 			raise Http404
 		user_key = self.serializer_context_user_key if self.serializer_context_user_key else "user"
-		s = self.serializer(instance, data=object, context={user_key:user,'device_id':device_id, 'files':files})
+
+		if instance is None and self.check_has_field(Model, 'deviceId'):
+			object['deviceId'] = device_id
+
+		extra_serializer_kwargs = self.extra_serializer_kwargs or {}
+		s = self.serializer(instance, data=object, context={user_key:user,'device_id':device_id, 'files':files}, **extra_serializer_kwargs)
 		try:
 			s.is_valid(raise_exception=True)
 			saved_obj = s.save(**object)
@@ -343,7 +374,10 @@ class ObjectDeletedSyncManager(BaseSyncManager):
 		else:
 			owner_attr = self.owner_attr if self.owner_attr else "user"
 			owner_attr += "_id"
-			deleted = list(ModelToDelete.objects.filter(**{"timestamp__gt":timestamp,owner_attr:employee.id}).values(fk_attr))
+			fargs = {"timestamp__gt": timestamp}
+			if self.check_has_field(ModelToDelete, owner_attr):
+				fargs[owner_attr] = employee.id
+			deleted = list(ModelToDelete.objects.filter(**fargs).values(fk_attr))
 			if ModelDeleted:
 				deleted += list(ModelDeleted.objects.filter(timestamp__gt=timestamp).values(fk_attr))
 			attr = camelcase_underscore(self.app_model.split('.')[1]) + '_id'
