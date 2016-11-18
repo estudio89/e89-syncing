@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-from django.conf.urls import patterns, include, url
+from django.conf.urls import url
+import e89_syncing.views
 
-urlpatterns = patterns('e89_syncing.views',
-    (r'^authenticate/', 'authenticate'),
-    (r'^get-data-from-server/$', 'get_data_from_server'),
-    (r'^get-data-from-server/(?P<identifier>\w+)/$', 'get_data_from_server'),
-    (r'^send-data-to-server/', 'send_data_to_server'),
-)
+urlpatterns = [
+    url(r'^authenticate/', e89_syncing.views.authenticate),
+    url(r'^get-data-from-server/$', e89_syncing.views.get_data_from_server),
+    url(r'^get-data-from-server/(?P<identifier>\w+)/$', e89_syncing.views.get_data_from_server),
+    url(r'^send-data-to-server/', e89_syncing.views.send_data_to_server),
+]
