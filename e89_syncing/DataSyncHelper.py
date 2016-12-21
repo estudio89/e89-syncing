@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from django.conf import settings
 from django.http import Http404
-from django.db import transaction, OperationalError
+from django.db import transaction, OperationalError, IntegrityError
 from django.apps import apps
 from django.shortcuts import get_object_or_404
 from django.core.exceptions import FieldDoesNotExist
@@ -336,6 +336,11 @@ class AbstractSyncManager(BaseSyncManager):
 				except Model.DoesNotExist:
 					raise e
 			else:
+				raise e
+		except IntegrityError, e:
+			try:
+				saved_obj = Model.objects.get(idClient=object["idClient"], deviceId=device_id)
+			except Model.DoesNotExist:
 				raise e
 
 
