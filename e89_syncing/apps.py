@@ -24,7 +24,7 @@ class E89SyncingConfig(AppConfig):
 				if identifier == coupled:
 					continue
 
-				if identifier in coupled or coupled in identifier:
+				if identifier.startswith(coupled) or coupled.startswith(identifier):
 					E89SyncingConfig.sync_managers[identifier]["coupled"].append(coupled)
 
 	@staticmethod
