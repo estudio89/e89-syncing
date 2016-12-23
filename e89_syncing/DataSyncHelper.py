@@ -60,6 +60,12 @@ def getModifiedData(user, timestamps, timestamp = None, exclude = {}, platform =
 			if timestamp is None and identifier not in coupled_sync_managers:
 				continue
 			else:
+				if timestamp is None and identifier in coupled_sync_managers:
+					for coupled_identifier in coupled:
+						timestamp = timestamps.get(coupled_identifier, None)
+						if timestamp is not None:
+							break
+
 				# coupled sync managers can send data in the same request
 				for sm in coupled: coupled_sync_managers.append(sm)
 
