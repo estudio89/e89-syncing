@@ -333,8 +333,9 @@ class AbstractSyncManager(BaseSyncManager):
 		extra_serializer_kwargs = self.extra_serializer_kwargs or {}
 		s = self.serializer(instance, data=object, context={user_key:user,'device_id':device_id, 'files':files}, **extra_serializer_kwargs)
 		try:
-			s.is_valid(raise_exception=True)
-			saved_obj = s.save(**object)
+			with transaction.atomic():
+				s.is_valid(raise_exception=True)
+				saved_obj = s.save(**object)
 		except ValidationError, e:
 			if self.allow_creation and s._errors.has_key("non_field_errors"):
 				try:
