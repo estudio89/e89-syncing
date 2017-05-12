@@ -4,7 +4,11 @@ from django.http import Http404
 from django.db import transaction, OperationalError, IntegrityError
 from django.apps import apps
 from django.shortcuts import get_object_or_404
-from django.core.exceptions import FieldDoesNotExist
+try:
+	from django.core.exceptions import FieldDoesNotExist
+except ImportError:
+	from django.db.models.fields import FieldDoesNotExist
+
 from e89_syncing.apps import E89SyncingConfig
 from e89_syncing.syncing_utils import *
 from e89_tools.tools import camelcase_underscore
