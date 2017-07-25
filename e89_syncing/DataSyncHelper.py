@@ -2,8 +2,11 @@
 from django.conf import settings
 from django.http import Http404
 from django.db import transaction, OperationalError, IntegrityError
+from django.db.models import Max
 from django.apps import apps
 from django.shortcuts import get_object_or_404
+from django.core.exceptions import ObjectDoesNotExist
+
 try:
 	from django.core.exceptions import FieldDoesNotExist
 except ImportError:
@@ -38,7 +41,12 @@ def saveNewData(user, timestamp, timestamps, device_id, data, files, platform = 
 				response.update(manager_response)
 				new_objects[sync_manager.getIdentifier()] = [o.id for o in objects if o is not None]
 
-	new_data = getModifiedData(user = user, timestamp = timestamp, timestamps = timestamps, exclude = new_objects, platform = platform, app_version = app_version)
+	new_data = getModifiedData(user = user,
+							timestamp = timestamp,
+							timestamps = timestamps,
+							exclude = new_objects,
+							platform = platform,
+							app_version = app_version)
 	response.update(new_data)
 
 	return response
@@ -74,14 +82,28 @@ def getModifiedData(user, timestamps, timestamp = None, exclude = {}, platform =
 				for sm in coupled: coupled_sync_managers.append(sm)
 
 		timestamp = timestamp_to_datetime(timestamp)
-		manager_data,manager_parameters = sync_manager.getModifiedData(user = user, timestamp = timestamp, exclude = exclude.get(identifier,[]), platform = platform, app_version = app_version)
+		manager_data,manager_parameters, new_timestamp = sync_manager.getModifiedData(user = user, timestamp = timestamp, exclude = exclude.get(identifier,[]), platform = platform, app_version = app_version)
 		manager_parameters['data'] = manager_data
 		data[identifier] = manager_parameters
-		new_timestamp = get_new_timestamp()
-		data["timestamps"][identifier] = new_timestamp
+
+		if new_timestamp is None:
+			new_timestamp = timestamp
 
 		# Synchronizing timestamps across coupled sync managers
-		for sm in coupled: data["timestamps"][sm] = new_timestamp
+		for sm in coupled:
+			current_timestamp = data["timestamps"].get(sm)
+			if current_timestamp is None:
+				data["timestamps"][sm] = new_timestamp
+			else:
+				new_timestamp = max(new_timestamp, current_timestamp)
+				data["timestamps"][sm] = new_timestamp
+
+		data["timestamps"][identifier] = new_timestamp
+
+	# Converting all timestamps to strings
+	for key, value in data["timestamps"].items():
+		data["timestamps"][key] = datetime_to_timestamp(value)
+
 	SyncLog = apps.get_model('e89_syncing','SyncLog')
 	SyncLog.objects.store_timestamps(user, data["timestamps"])
 
@@ -116,24 +138,34 @@ def getModifiedDataForIdentifier(user, parameters, identifier, timestamps, platf
 	if sync_manager is None:
 		raise Http404
 	timestamp = timestamps.get(sync_manager.getIdentifier(), "")
-	manager_data,manager_parameters = sync_manager.getModifiedData(user = user, timestamp = timestamp_to_datetime(timestamp), parameters = parameters, platform = platform, app_version = app_version)
+	timestamp = timestamp_to_datetime(timestamp)
+	manager_data,manager_parameters, new_timestamp = sync_manager.getModifiedData(user = user, timestamp = timestamp, parameters = parameters, platform = platform, app_version = app_version)
 	manager_parameters['data'] = manager_data
+
+	if new_timestamp is None:
+		new_timestamp = timestamp
 
 	data = {identifier:manager_parameters}
 	if timestamps.has_key(identifier): # Not paginating, but updating
 		coupled = E89SyncingConfig.get_coupled_sync_managers(identifier)
 		if not coupled:
-			data["timestamps"] = {identifier:get_new_timestamp()}
+			data["timestamps"] = {identifier:datetime_to_timestamp(new_timestamp)}
 		else:
 			data["timestamps"] = {}
 			for sm in coupled:
 				coupled_sync_manager = E89SyncingConfig.get_sync_manager(sm)
-				coupled_data,coupled_parameters = coupled_sync_manager.getModifiedData(user = user, timestamp = timestamp_to_datetime(timestamp), parameters = parameters, platform = platform, app_version = app_version)
+				coupled_data,coupled_parameters, new_coupled_timestamp = coupled_sync_manager.getModifiedData(user = user, timestamp = timestamp, parameters = parameters, platform = platform, app_version = app_version)
 				coupled_parameters['data'] = coupled_data
 				data[sm] = coupled_parameters
-				new_timestamp = get_new_timestamp()
+				if new_coupled_timestamp is not None:
+					new_timestamp = max(new_timestamp, new_coupled_timestamp)
+
 				data["timestamps"][identifier] = new_timestamp
 				data["timestamps"][sm] = new_timestamp
+
+			# Converting all timestamps to strings
+			for key, value in data["timestamps"].items():
+				data["timestamps"][key] = datetime_to_timestamp(value)
 
 		SyncLog = apps.get_model('e89_syncing','SyncLog')
 		SyncLog.objects.store_timestamps(user, data["timestamps"])
@@ -225,6 +257,7 @@ class AbstractSyncManager(BaseSyncManager):
 	allow_creation = False
 	pagination_parameter = "max_date"
 	extra_serializer_kwargs = {}
+	timestamp_field = "timestamp"
 
 	def getModifiedData(self, user, timestamp, parameters = None, exclude = [], platform = None, app_version = None):
 		''' Searches for new data to be sent. Must return a list of serialized items and a dictionary
@@ -241,7 +274,10 @@ class AbstractSyncManager(BaseSyncManager):
 		Model = apps.get_model(self.app_model)
 
 		# Fetching objects and paginating
-		objects = Model.objects.get_sync_items(user=user,timestamp=timestamp, **parameters).prefetch_related(*self.prefetch_params).exclude(id__in=merged_exclude)
+		objects = Model.objects.get_sync_items(user=user,timestamp=timestamp, **parameters).prefetch_related(*self.prefetch_params)
+		new_timestamp = self.getNewTimestamp(objects)
+		objects = objects.exclude(id__in=merged_exclude)
+
 		response_parameters = {}
 		if self.page_size is not None:
 			response_parameters = self._get_pagination_response_parameters(objects, timestamp, parameters, is_paginating_or_first_fetch)
@@ -254,7 +290,10 @@ class AbstractSyncManager(BaseSyncManager):
 		extra_serializer_kwargs = self.extra_serializer_kwargs or {}
 		s = self.serializer(list(objects), context={user_key:user, 'timestamp': timestamp, 'platform': platform, 'app_version': app_version}, many=True, **extra_serializer_kwargs)
 		serialized = s.data
-		return serialized, response_parameters
+		return serialized, response_parameters, new_timestamp
+
+	def getNewTimestamp(self, objects):
+		return objects.values(self.timestamp_field).aggregate(new_timestamp=Max(self.timestamp_field))['new_timestamp']
 
 	def getExtraSerializerKwargs(self):
 		return {}
@@ -293,6 +332,7 @@ class AbstractSyncManager(BaseSyncManager):
 						]
 					}
 			2. List with all the objects that were created
+			3. The new timestamp, based on the items that were created
 			'''
 		response = []
 		new_objects = []
@@ -387,20 +427,30 @@ class ObjectDeletedSyncManager(BaseSyncManager):
 
 		if timestamp == FIRST_TIMESTAMP: # First fetch
 			deleted = []
+			new_timestamp = timestamp
 		else:
 			owner_attr = self.owner_attr if self.owner_attr else "user"
 			owner_attr += "_id"
 			fargs = {"timestamp__gt": timestamp}
 			if self.check_has_field(ModelToDelete, owner_attr):
 				fargs[owner_attr] = employee.id
-			deleted = list(ModelToDelete.objects.filter(**fargs).values(fk_attr))
+
+			objects_to_delete = ModelToDelete.objects.filter(**fargs).values(fk_attr)
+			new_timestamp = objects_to_delete.values('timestamp').aggregate(new_timestamp=Max('timestamp'))['new_timestamp']
+			if new_timestamp is None:
+				new_timestamp = timestamp
+			deleted = list(objects_to_delete)
 			if ModelDeleted:
-				deleted += list(ModelDeleted.objects.filter(timestamp__gt=timestamp).values(fk_attr))
+				objects_deleted = ModelDeleted.objects.filter(timestamp__gt=timestamp).values(fk_attr)
+				deleted += list(objects_deleted)
+				new_timestamp2 = objects_deleted.values('timestamp').aggregate(new_timestamp=Max('timestamp'))['new_timestamp']
+				if new_timestamp2 is not None:
+					new_timestamp = max(new_timestamp, new_timestamp2)
 			attr = camelcase_underscore(self.app_model.split('.')[1]) + '_id'
 			deleted = {v[attr]:v for v in deleted}.values()
 
 		response_parameters = {}
-		return deleted, response_parameters
+		return deleted, response_parameters, new_timestamp
 
 	def saveNewData(self, user, device_id, data, files = None, platform = None, app_version = None):
 		''' Saves new data received. Must return 2 objects:
