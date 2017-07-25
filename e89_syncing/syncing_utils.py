@@ -20,7 +20,10 @@ def timestamp_to_datetime(timestamp):
     return timestamp
 
 def datetime_to_timestamp(date):
-    return date.strftime("%Y-%m-%d %H:%M:%S.%f %Z")
+    if isinstance(date, dt.datetime):
+        return date.strftime("%Y-%m-%d %H:%M:%S.%f %Z")
+    else:
+        return date
 
 def get_new_timestamp():
     new_timestamp = timezone.now()
