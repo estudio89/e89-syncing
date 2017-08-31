@@ -12,6 +12,9 @@ import e89_syncing.syncing_utils
 import DataSyncHelper
 import json
 import sys
+import logging
+
+LOGGER = logging.getLogger(__name__)
 
 @csrf_exempt
 @e89_security.tools.secure_view(encryption_key=lambda: getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), encryption_active=lambda: getattr(settings, "SYNC_ENCRYPTION", False))
@@ -24,7 +27,7 @@ def get_data_from_server(request, data, identifier = None):
         data["token"] = ""
 
     if getattr(settings, 'SYNC_DEBUG', False):
-        print >>sys.stderr, 'GET DATA FROM SERVER: RECEIVED ' + json.dumps(data, ensure_ascii=False)
+        LOGGER.info('GET DATA FROM SERVER: RECEIVED ' + json.dumps(data, ensure_ascii=False))
 
     token, timestamp, timestamps = e89_syncing.syncing_utils.extract_meta_data(data)
     platform = e89_syncing.syncing_utils.get_platform(request)
@@ -44,7 +47,7 @@ def get_data_from_server(request, data, identifier = None):
             response = DataSyncHelper.getExpiredTokenResponse()
 
     if getattr(settings, 'SYNC_DEBUG', False):
-        print >>sys.stderr, 'GET DATA FROM SERVER: RESPONDED ' + json.dumps(response, ensure_ascii=False)
+        LOGGER.info('GET DATA FROM SERVER: RESPONDED ' + json.dumps(response, ensure_ascii=False))
 
     return response
 
@@ -53,7 +56,7 @@ def get_data_from_server(request, data, identifier = None):
 def send_data_to_server(request, data):
 
     if getattr(settings, 'SYNC_DEBUG', False):
-        print >>sys.stderr, 'SEND DATA TO SERVER: RECEIVED ' + json.dumps(data, ensure_ascii=False)
+        LOGGER.info('SEND DATA TO SERVER: RECEIVED ' + json.dumps(data, ensure_ascii=False))
 
     token, timestamp, timestamps = e89_syncing.syncing_utils.extract_meta_data(data)
     platform = e89_syncing.syncing_utils.get_platform(request)
@@ -75,7 +78,7 @@ def send_data_to_server(request, data):
             response = DataSyncHelper.getExpiredTokenResponse()
 
     if getattr(settings, 'SYNC_DEBUG', False):
-        print >>sys.stderr, 'SEND DATA TO SERVER: RESPONDED ' + json.dumps(response, ensure_ascii=False)
+        LOGGER.info('SEND DATA TO SERVER: RESPONDED ' + json.dumps(response, ensure_ascii=False))
     return response
 
 @csrf_exempt
