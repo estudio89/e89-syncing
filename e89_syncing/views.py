@@ -17,10 +17,10 @@ import copy
 
 LOGGER = logging.getLogger(__name__)
 
-def _log_data(message, user, extracted_token):
+def _log_data(message, user, extracted_token, is_web):
     if getattr(settings, 'SYNC_DEBUG', False):
         log_token = extracted_token if user is None else e89_syncing.syncing_utils.get_user_token(user, settings.SYNC_TOKEN_ATTR)
-        LOGGER.info('(token = ' + log_token + ('[web]' if user is not None else '[mobile]') + ') ' + message)
+        LOGGER.info('(token = ' + log_token + (' [web]' if is_web else ' [mobile]') + ') ' + message)
 
 @csrf_exempt
 @e89_security.tools.secure_view(encryption_key=lambda: getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), encryption_active=lambda: getattr(settings, "SYNC_ENCRYPTION", False))
@@ -28,9 +28,11 @@ def get_data_from_server(request, data, identifier = None):
 
     if not request.user.is_authenticated():
         user = None
+        is_web = False
     else:
         user = e89_syncing.syncing_utils.get_user_object(request.user)
         data["token"] = ""
+        is_web = True
 
     try:
         original_data = copy.deepcopy(data)
@@ -39,7 +41,7 @@ def get_data_from_server(request, data, identifier = None):
         app_version = e89_syncing.syncing_utils.get_app_version(request)
 
     finally:
-        _log_data('GET DATA FROM SERVER: RECEIVED ' + json.dumps(original_data, ensure_ascii=False), user, locals().get('token', ""))
+        _log_data('GET DATA FROM SERVER: RECEIVED ' + json.dumps(original_data, ensure_ascii=False), user, locals().get('token', ""), is_web)
 
     if user is None:
         user,response = e89_syncing.syncing_utils.get_user_from_token(token)
@@ -54,7 +56,7 @@ def get_data_from_server(request, data, identifier = None):
         except DataSyncHelper.ExpiredTokenException:
             response = DataSyncHelper.getExpiredTokenResponse()
 
-    _log_data('GET DATA FROM SERVER: RESPONDED ' + json.dumps(response, ensure_ascii=False), user, locals().get('token', ""))
+    _log_data('GET DATA FROM SERVER: RESPONDED ' + json.dumps(response, ensure_ascii=False), user, locals().get('token', ""), is_web)
 
     return response
 
@@ -73,7 +75,7 @@ def send_data_to_server(request, data):
 
     finally:
 
-        _log_data('SEND DATA TO SERVER: RECEIVED ' + json.dumps(original_data, ensure_ascii=False), user, locals().get('token', ""))
+        _log_data('SEND DATA TO SERVER: RECEIVED ' + json.dumps(original_data, ensure_ascii=False), user, locals().get('token', ""), False)
 
 
     if user is not None:
@@ -88,7 +90,7 @@ def send_data_to_server(request, data):
         except DataSyncHelper.ExpiredTokenException:
             response = DataSyncHelper.getExpiredTokenResponse()
 
-    _log_data('SEND DATA TO SERVER: RESPONDED ' + json.dumps(response, ensure_ascii=False), user, locals().get('token', ""))
+    _log_data('SEND DATA TO SERVER: RESPONDED ' + json.dumps(response, ensure_ascii=False), user, locals().get('token', ""), False)
     return response
 
 @csrf_exempt
