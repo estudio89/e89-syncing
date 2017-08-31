@@ -20,7 +20,7 @@ LOGGER = logging.getLogger(__name__)
 def _log_data(message, user, extracted_token):
     if getattr(settings, 'SYNC_DEBUG', False):
         log_token = extracted_token if user is None else e89_syncing.syncing_utils.get_user_token(user, settings.SYNC_TOKEN_ATTR)
-        LOGGER.info('(token = ' + log_token + ') ' + message)
+        LOGGER.info('(token = ' + log_token + ('[web]' if user is not None else '[mobile]') + ') ' + message)
 
 @csrf_exempt
 @e89_security.tools.secure_view(encryption_key=lambda: getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), encryption_active=lambda: getattr(settings, "SYNC_ENCRYPTION", False))
