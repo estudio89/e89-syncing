@@ -248,6 +248,40 @@ class BaseSyncManager(object):
 		except FieldDoesNotExist:
 			return False
 
+class DefaultTimestampGenerator(object):
+	timestamp_field = "timestamp"
+
+	def __init__(self, timestamp_field = None):
+		if timestamp_field is not None:
+			self.timestamp_field = timestamp_field
+
+	def getNewTimestamp(self, objects, user):
+		return objects.values(self.timestamp_field).aggregate(new_timestamp=Max(self.timestamp_field))['new_timestamp']
+
+class ModelToSendTimestampGenerator(DefaultTimestampGenerator):
+	app_model = ''
+	to_send_timestamp_field = "timestamp"
+	user_field = "user"
+
+	def getNewTimestamp(self, objects, user):
+		default_timestamp = super(ModelToSendTimestampGenerator, self).getNewTimestamp(objects, user)
+
+		ModelToSend = apps.get_model(self.app_model + 'ToSend')
+		model_fk = camelcase_underscore(self.app_model.split('.')[1]) + '_id'
+
+		fkargs = {
+			"%s__in"%(model_fk): objects.values_list("id", flat=True),
+			self.user_field: user
+		}
+
+		to_send_timestamp = ModelToSend.objects.filter(**fkargs).values(self.to_send_timestamp_field).aggregate(new_timestamp=Max(self.to_send_timestamp_field))['new_timestamp']
+
+		if to_send_timestamp is not None:
+			return max(default_timestamp, to_send_timestamp)
+		else:
+			return default_timestamp
+
+
 class AbstractSyncManager(BaseSyncManager):
 	app_model = ''
 	page_size = 10
@@ -257,7 +291,8 @@ class AbstractSyncManager(BaseSyncManager):
 	allow_creation = False
 	pagination_parameter = "max_date"
 	extra_serializer_kwargs = {}
-	timestamp_field = "timestamp"
+	timestamp_field = None
+	timestamp_generator_class = DefaultTimestampGenerator
 
 	def getModifiedData(self, user, timestamp, parameters = None, exclude = [], platform = None, app_version = None):
 		''' Searches for new data to be sent. Must return a list of serialized items and a dictionary
@@ -275,7 +310,7 @@ class AbstractSyncManager(BaseSyncManager):
 
 		# Fetching objects and paginating
 		objects = Model.objects.get_sync_items(user=user,timestamp=timestamp, **parameters).prefetch_related(*self.prefetch_params)
-		new_timestamp = self.getNewTimestamp(objects)
+		new_timestamp = self.getNewTimestamp(objects, user=user)
 		objects = objects.exclude(id__in=merged_exclude)
 
 		response_parameters = {}
@@ -292,8 +327,8 @@ class AbstractSyncManager(BaseSyncManager):
 		serialized = s.data
 		return serialized, response_parameters, new_timestamp
 
-	def getNewTimestamp(self, objects):
-		return objects.values(self.timestamp_field).aggregate(new_timestamp=Max(self.timestamp_field))['new_timestamp']
+	def getNewTimestamp(self, objects, user):
+		return self.timestamp_generator_class(self.timestamp_field).getNewTimestamp(objects, user)
 
 	def getExtraSerializerKwargs(self):
 		return {}
