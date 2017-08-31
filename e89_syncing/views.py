@@ -68,13 +68,13 @@ def send_data_to_server(request, data):
         platform = e89_syncing.syncing_utils.get_platform(request)
         app_version = e89_syncing.syncing_utils.get_app_version(request)
 
+        UserModel = apps.get_model(settings.SYNC_USER_MODEL)
+        user,response = e89_syncing.syncing_utils.get_user_from_token(token)
+
     finally:
 
         _log_data('SEND DATA TO SERVER: RECEIVED ' + json.dumps(original_data, ensure_ascii=False), user, locals().get('token', ""))
 
-
-    UserModel = apps.get_model(settings.SYNC_USER_MODEL)
-    user,response = e89_syncing.syncing_utils.get_user_from_token(token)
 
     if user is not None:
         assert timestamp is not None or timestamps != {}, "Timestamp was not sent along with data."
