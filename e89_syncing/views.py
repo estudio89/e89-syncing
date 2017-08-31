@@ -13,8 +13,14 @@ import DataSyncHelper
 import json
 import sys
 import logging
+import copy
 
 LOGGER = logging.getLogger(__name__)
+
+def _log_data(message, user, extracted_token):
+    if getattr(settings, 'SYNC_DEBUG', False):
+        log_token = extracted_token if user is None else e89_syncing.syncing_utils.get_user_token(user, settings.SYNC_TOKEN_ATTR)
+        LOGGER.info('(token = ' + log_token + ') ' + message)
 
 @csrf_exempt
 @e89_security.tools.secure_view(encryption_key=lambda: getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), encryption_active=lambda: getattr(settings, "SYNC_ENCRYPTION", False))
@@ -26,12 +32,14 @@ def get_data_from_server(request, data, identifier = None):
         user = e89_syncing.syncing_utils.get_user_object(request.user)
         data["token"] = ""
 
-    if getattr(settings, 'SYNC_DEBUG', False):
-        LOGGER.info('GET DATA FROM SERVER: RECEIVED ' + json.dumps(data, ensure_ascii=False))
+    try:
+        original_data = copy.deepcopy(data)
+        token, timestamp, timestamps = e89_syncing.syncing_utils.extract_meta_data(data)
+        platform = e89_syncing.syncing_utils.get_platform(request)
+        app_version = e89_syncing.syncing_utils.get_app_version(request)
 
-    token, timestamp, timestamps = e89_syncing.syncing_utils.extract_meta_data(data)
-    platform = e89_syncing.syncing_utils.get_platform(request)
-    app_version = e89_syncing.syncing_utils.get_app_version(request)
+    finally:
+        _log_data('GET DATA FROM SERVER: RECEIVED ' + json.dumps(original_data, ensure_ascii=False), user, locals().get('token', ""))
 
     if user is None:
         user,response = e89_syncing.syncing_utils.get_user_from_token(token)
@@ -46,8 +54,7 @@ def get_data_from_server(request, data, identifier = None):
         except DataSyncHelper.ExpiredTokenException:
             response = DataSyncHelper.getExpiredTokenResponse()
 
-    if getattr(settings, 'SYNC_DEBUG', False):
-        LOGGER.info('GET DATA FROM SERVER: RESPONDED ' + json.dumps(response, ensure_ascii=False))
+    _log_data('GET DATA FROM SERVER: RESPONDED ' + json.dumps(response, ensure_ascii=False), user, locals().get('token', ""))
 
     return response
 
@@ -55,12 +62,16 @@ def get_data_from_server(request, data, identifier = None):
 @e89_security.tools.secure_view(encryption_key=lambda: getattr(settings, "SYNC_ENCRYPTION_PASSWORD", ""), encryption_active=lambda: getattr(settings, "SYNC_ENCRYPTION", False))
 def send_data_to_server(request, data):
 
-    if getattr(settings, 'SYNC_DEBUG', False):
-        LOGGER.info('SEND DATA TO SERVER: RECEIVED ' + json.dumps(data, ensure_ascii=False))
+    try:
+        original_data = copy.deepcopy(data)
+        token, timestamp, timestamps = e89_syncing.syncing_utils.extract_meta_data(data)
+        platform = e89_syncing.syncing_utils.get_platform(request)
+        app_version = e89_syncing.syncing_utils.get_app_version(request)
 
-    token, timestamp, timestamps = e89_syncing.syncing_utils.extract_meta_data(data)
-    platform = e89_syncing.syncing_utils.get_platform(request)
-    app_version = e89_syncing.syncing_utils.get_app_version(request)
+    finally:
+
+        _log_data('SEND DATA TO SERVER: RECEIVED ' + json.dumps(original_data, ensure_ascii=False), user, locals().get('token', ""))
+
 
     UserModel = apps.get_model(settings.SYNC_USER_MODEL)
     user,response = e89_syncing.syncing_utils.get_user_from_token(token)
@@ -77,8 +88,7 @@ def send_data_to_server(request, data):
         except DataSyncHelper.ExpiredTokenException:
             response = DataSyncHelper.getExpiredTokenResponse()
 
-    if getattr(settings, 'SYNC_DEBUG', False):
-        LOGGER.info('SEND DATA TO SERVER: RESPONDED ' + json.dumps(response, ensure_ascii=False))
+    _log_data('SEND DATA TO SERVER: RESPONDED ' + json.dumps(response, ensure_ascii=False), user, locals().get('token', ""))
     return response
 
 @csrf_exempt
