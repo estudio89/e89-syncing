@@ -276,7 +276,7 @@ class ModelToSendTimestampGenerator(DefaultTimestampGenerator):
 
 		to_send_timestamp = ModelToSend.objects.filter(**fkargs).values(self.to_send_timestamp_field).aggregate(new_timestamp=Max(self.to_send_timestamp_field))['new_timestamp']
 
-		if to_send_timestamp is not None:
+		if to_send_timestamp is not None and default_timestamp is not None:
 			return max(default_timestamp, to_send_timestamp)
 		else:
 			return default_timestamp
