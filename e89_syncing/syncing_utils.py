@@ -89,7 +89,7 @@ def check_performance(user, timestamps={}, print_results=True):
         queries_bf = len(connection.queries)
         timestamp = timestamps.get(identifier, FIRST_TIMESTAMP)
         time_bf = time.time()
-        manager_data,manager_parameters = sync_manager.getModifiedData(user = user, timestamp = timestamp)
+        manager_data,manager_parameters, new_timestamp = sync_manager.getModifiedData(user = user, timestamp = timestamp)
         time_taken = time.time() - time_bf
         queries_performed = len(connection.queries) - queries_bf
         result[identifier] = {
