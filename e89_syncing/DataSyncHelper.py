@@ -309,7 +309,7 @@ class AbstractSyncManager(BaseSyncManager):
 		Model = apps.get_model(self.app_model)
 
 		# Fetching objects and paginating
-		objects = Model.objects.get_sync_items(user=user,timestamp=timestamp, **parameters).prefetch_related(*self.prefetch_params)
+		objects = Model.objects.get_sync_items(user=user,timestamp=timestamp, **parameters).prefetch_related(*self.getPrefetchParams(user, timestamp, **parameters))
 		new_timestamp = self.getNewTimestamp(objects, user=user)
 		objects = objects.exclude(id__in=merged_exclude)
 
@@ -326,6 +326,10 @@ class AbstractSyncManager(BaseSyncManager):
 		s = self.serializer(list(objects), context={user_key:user, 'timestamp': timestamp, 'platform': platform, 'app_version': app_version}, many=True, **extra_serializer_kwargs)
 		serialized = s.data
 		return serialized, response_parameters, new_timestamp
+
+	def getPrefetchParams(self, user, timestamp, **kwargs):
+		''' Must return an array of prefetch params. These may be Prefetch objects. '''
+		return self.prefetch_params
 
 	def getNewTimestamp(self, objects, user):
 		return self.timestamp_generator_class(self.timestamp_field).getNewTimestamp(objects, user)
